@@ -35,6 +35,11 @@ The workflow runs daily at 07:00 CET and commits new snapshots to the repo. Trig
 gh workflow run fetch.yml
 ```
 
+## Feature Ideas
+
+- **"Tage online" counter** — show how long each posting has been listed by comparing first-seen date across historical snapshots
+- **Historical sparkline** — visualise posting volume trends over time (total open positions per day)
+
 ## Data Source
 
 - Postings: https://info.bildung-ooe.gv.at/data/Bewerbung_APS.xml

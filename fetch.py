@@ -3,6 +3,7 @@
 
 import json
 import os
+import re
 import smtplib
 import sys
 import time
@@ -117,6 +118,48 @@ def excel_serial_to_date(serial):
         return None
 
 
+FACH_CODES = {
+    "VL": "Volksschullehrer",
+    "VSL": "Volksschullehrer (Sonderpäd.)",
+    "ML": "Mittelschullehrer",
+    "SL": "Sonderschullehrer",
+    "PL": "Polytechnischer Lehrer",
+    "RK": "Religion (kath.)",
+}
+
+
+def parse_schulfach(raw):
+    """Extract structured data from the SCHULFACH field."""
+    # Hours: "VL 22h" or "ML 12h" or "VL 14 h"
+    m = re.match(r"([A-Z]{2,3})\s+(\d+)\s*h", raw)
+    fach_code = m.group(1) if m else ""
+    fach_label = FACH_CODES.get(fach_code, fach_code)
+    hours = int(m.group(2)) if m else 0
+
+    # Hour range: "11-22 Wochenstunden" or "15-20 Wochenstunden"
+    rm = re.search(r"(\d+)-(\d+)\s*Wochenstunden", raw)
+    hours_min = int(rm.group(1)) if rm else hours
+    hours_max = int(rm.group(2)) if rm else hours
+
+    # Start date: "ab DD.MM.YYYY" or "ab D.M.YYYY" or "ab sofort"
+    dm = re.search(r"ab\s+(\d{1,2})\.(\d{1,2})\.(\d{4})", raw)
+    if dm:
+        start_date = f"{int(dm.group(3)):04d}-{int(dm.group(2)):02d}-{int(dm.group(1)):02d}"
+    elif "ab sofort" in raw.lower():
+        start_date = "sofort"
+    else:
+        start_date = ""
+
+    return {
+        "fach_code": fach_code,
+        "fach_label": fach_label,
+        "hours": hours,
+        "hours_min": hours_min,
+        "hours_max": hours_max,
+        "start_date": start_date,
+    }
+
+
 def parse_xml(xml_text, chancenbonus_codes):
     root = ET.fromstring(xml_text)
     postings = []
@@ -130,13 +173,16 @@ def parse_xml(xml_text, chancenbonus_codes):
         school_name = dienststelle[7:].strip() if len(dienststelle) > 7 else dienststelle
 
         befristet_raw = (stelle.findtext("BEFRISTET") or "").strip()
+        schulfach_raw = (stelle.findtext("SCHULFACH") or "").strip()
+        parsed = parse_schulfach(schulfach_raw)
 
         postings.append({
             "bezeichnung": (stelle.findtext("BEZEICHNUNG") or "").strip(),
             "dienststelle": dienststelle,
             "schulkennzahl": code,
             "school_name": school_name,
-            "schulfach": (stelle.findtext("SCHULFACH") or "").strip(),
+            "schulfach": schulfach_raw,
+            **parsed,
             "befristet": befristet_raw,
             "befristet_date": excel_serial_to_date(befristet_raw),
             "bewerber": int((stelle.findtext("BEWERBER") or "0").strip()),
@@ -250,18 +296,30 @@ def send_email(config, added, removed):
     print(f"Email sent to {', '.join(recipients)}")
 
 
-def generate_html(postings, geo_cache=None):
+def generate_html(postings, geo_cache=None, new_keys=None):
     docs_dir = SCRIPT_DIR / "docs"
     docs_dir.mkdir(exist_ok=True)
 
     geo_cache = geo_cache or {}
+    new_keys = new_keys or set()
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
     cb_count = sum(1 for p in postings if p["chancenbonus"])
+    new_count = sum(1 for p in postings if posting_key(p) in new_keys)
+    zero_applicants = sum(1 for p in postings if p["bewerber"] == 0)
 
     # Collect unique values for filter chips
     schultypen = sorted(set(p["schultyp"] for p in postings))
     regionen = sorted(set(p["bildungsregion"] for p in postings))
     bezirke = sorted(set(p["bezirk"] for p in postings))
+
+    # Hour range buckets for filter
+    HOUR_BUCKETS = [("1-10h", 1, 10), ("11-15h", 11, 15), ("16-20h", 16, 20), ("21-22h", 21, 22)]
+
+    def hour_bucket(h):
+        for label, lo, hi in HOUR_BUCKETS:
+            if lo <= h <= hi:
+                return label
+        return ""
 
     # Build geo JSON for embedding (only entries with coordinates)
     geo_json = json.dumps({k: v for k, v in geo_cache.items() if v}, ensure_ascii=False)
@@ -279,6 +337,8 @@ def generate_html(postings, geo_cache=None):
     rows = []
     for p in sorted(postings, key=lambda x: (x["befristet_date"] or "9999-99-99", x["school_name"])):
         cb_badge = ' <span class="badge cb">Chancenbonus</span>' if p["chancenbonus"] else ""
+        is_new = posting_key(p) in new_keys
+        new_badge = ' <span class="badge new-badge">NEU</span>' if is_new else ""
         skz = p["schulkennzahl"]
         geo = geo_cache.get(skz)
         lat_attr = f' data-lat="{geo["lat"]}"' if geo else ""
@@ -287,19 +347,29 @@ def generate_html(postings, geo_cache=None):
         maps_url = f"https://www.google.com/maps/dir/?api=1&destination={html_esc(school_for_maps)}"
         iso_date = p["befristet_date"] or ""
         at_date = iso_to_at(p["befristet_date"])
+        hours = p.get("hours", 0)
+        hbucket = hour_bucket(hours)
+        bew = p["bewerber"]
+        bew_class = "bew-zero" if bew == 0 else ("bew-low" if bew <= 2 else "")
+        hours_display = f'{p.get("hours_min", 0)}-{hours}' if p.get("hours_min", 0) and p.get("hours_min", 0) != hours else str(hours)
         rows.append(
             f'<tr data-schultyp="{html_esc(p["schultyp"])}" '
             f'data-region="{html_esc(p["bildungsregion"])}" '
             f'data-bezirk="{html_esc(p["bezirk"])}" '
             f'data-cb="{1 if p["chancenbonus"] else 0}" '
+            f'data-new="{1 if is_new else 0}" '
+            f'data-hours="{hours}" '
+            f'data-hbucket="{hbucket}" '
+            f'data-bew="{bew}" '
             f'data-skz="{html_esc(skz)}"{lat_attr}{lng_attr}>'
-            f'<td><span class="school-name">{html_esc(p["school_name"])}</span>{cb_badge}</td>'
+            f'<td><span class="school-name">{html_esc(p["school_name"])}</span>{cb_badge}{new_badge}</td>'
             f'<td><span class="badge st-{p["schultyp"][:2].lower()}">{html_esc(p["schultyp"])}</span></td>'
             f'<td>{html_esc(p["bezirk"])}</td>'
             f'<td>{html_esc(p["bildungsregion"])}</td>'
             f'<td class="fach">{html_esc(p["schulfach"])}</td>'
+            f'<td class="num">{hours_display}h</td>'
             f'<td data-date="{iso_date}">{html_esc(at_date)}</td>'
-            f'<td class="num">{p["bewerber"]}</td>'
+            f'<td class="num {bew_class}">{bew}</td>'
             f'<td class="commute-cell" data-minutes="999999">-</td>'
             f'<td class="link-cell">'
             f'<a href="{maps_url}" target="_blank" rel="noopener" title="Route in Google Maps">Route</a>'
@@ -396,6 +466,10 @@ tr.hidden {{ display: none; }}
 .link-cell {{ white-space: nowrap; }}
 .link-cell a {{ color: var(--primary); text-decoration: none; font-size: 0.8rem; }}
 .link-cell a:hover {{ text-decoration: underline; }}
+.badge.new-badge {{ background: #fef3c7; color: #92400e; animation: pulse 2s ease-in-out 3; }}
+@keyframes pulse {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.5; }} }}
+.bew-zero {{ color: var(--green); }}
+.bew-low {{ color: var(--amber); }}
 @media (max-width: 768px) {{
   .header, .controls, .table-wrap, .count {{ padding-left: 1rem; padding-right: 1rem; }}
   .filter-label {{ min-width: auto; width: 100%; }}
@@ -409,9 +483,9 @@ tr.hidden {{ display: none; }}
   <div class="meta">Stellenausschreibungen f\u00fcr Landeslehrer im Pflichtschulbereich &mdash; Stand: {now}</div>
   <div class="stats">
     <div class="stat"><div class="num">{len(postings)}</div><div class="label">Offene Stellen</div></div>
+    <div class="stat"><div class="num">{new_count}</div><div class="label">Neu heute</div></div>
+    <div class="stat"><div class="num">{zero_applicants}</div><div class="label">Ohne Bewerber</div></div>
     <div class="stat"><div class="num">{cb_count}</div><div class="label">Chancenbonus</div></div>
-    <div class="stat"><div class="num">{len(set(p['schulkennzahl'] for p in postings))}</div><div class="label">Schulen</div></div>
-    <div class="stat"><div class="num">{len(regionen)}</div><div class="label">Regionen</div></div>
   </div>
 </div>
 <div class="controls">
@@ -437,8 +511,17 @@ tr.hidden {{ display: none; }}
     {chips(bezirke, "bezirk")}
   </div>
   <div class="filter-group">
+    <span class="filter-label">Stunden</span>
+    <button class="chip" data-group="hbucket" data-value="1-10h" onclick="toggleChip(this)">1-10h</button>
+    <button class="chip" data-group="hbucket" data-value="11-15h" onclick="toggleChip(this)">11-15h</button>
+    <button class="chip" data-group="hbucket" data-value="16-20h" onclick="toggleChip(this)">16-20h</button>
+    <button class="chip" data-group="hbucket" data-value="21-22h" onclick="toggleChip(this)">21-22h</button>
+  </div>
+  <div class="filter-group">
     <span class="filter-label">Sonstiges</span>
     <button class="chip" data-group="cb" data-value="1" onclick="toggleChip(this)">Nur Chancenbonus</button>
+    <button class="chip" data-group="new" data-value="1" onclick="toggleChip(this)">Nur neue Stellen</button>
+    <button class="chip" data-group="nobew" data-value="1" onclick="toggleChip(this)">Ohne Bewerber</button>
   </div>
 </div>
 <div class="count" id="count">{len(postings)} Stellen angezeigt</div>
@@ -450,9 +533,10 @@ tr.hidden {{ display: none; }}
 <th class="sortable" onclick="sortTable(2)">Bezirk</th>
 <th class="sortable" onclick="sortTable(3)">Region</th>
 <th class="sortable" onclick="sortTable(4)">Fach / Details</th>
-<th class="sortable" onclick="sortTable(5)">Frist</th>
-<th class="sortable" onclick="sortTable(6)">Bewerber</th>
-<th class="sortable" onclick="sortTable(7)">Anfahrt</th>
+<th class="sortable" onclick="sortTable(5)">Stunden</th>
+<th class="sortable" onclick="sortTable(6)">Frist</th>
+<th class="sortable" onclick="sortTable(7)">Bewerber</th>
+<th class="sortable" onclick="sortTable(8)">Anfahrt</th>
 <th class="no-sort">Links</th>
 </tr></thead>
 <tbody>
@@ -462,7 +546,7 @@ tr.hidden {{ display: none; }}
 </div>
 <script>
 const GEO = {geo_json};
-const filters = {{ schultyp: new Set(), region: new Set(), bezirk: new Set(), cb: new Set() }};
+const filters = {{ schultyp: new Set(), region: new Set(), bezirk: new Set(), hbucket: new Set(), cb: new Set(), "new": new Set(), nobew: new Set() }};
 
 function toggleChip(el) {{
   const g = el.dataset.group, v = el.dataset.value;
@@ -480,7 +564,10 @@ function applyFilters() {{
     if (vis && filters.schultyp.size && !filters.schultyp.has(r.dataset.schultyp)) vis = false;
     if (vis && filters.region.size && !filters.region.has(r.dataset.region)) vis = false;
     if (vis && filters.bezirk.size && !filters.bezirk.has(r.dataset.bezirk)) vis = false;
+    if (vis && filters.hbucket.size && !filters.hbucket.has(r.dataset.hbucket)) vis = false;
     if (vis && filters.cb.size && r.dataset.cb !== "1") vis = false;
+    if (vis && filters["new"].size && r.dataset.new !== "1") vis = false;
+    if (vis && filters.nobew.size && r.dataset.bew !== "0") vis = false;
     r.classList.toggle("hidden", !vis);
     if (vis) shown++;
   }});
@@ -503,18 +590,22 @@ function sortTable(col) {{
   const rows = Array.from(tb.rows);
   sortDir[col] = !sortDir[col];
   rows.sort((a, b) => {{
-    if (col === 7) {{
-      const am = parseFloat(a.cells[7].dataset.minutes) || 999999;
-      const bm = parseFloat(b.cells[7].dataset.minutes) || 999999;
+    if (col === 8) {{
+      const am = parseFloat(a.cells[8].dataset.minutes) || 999999;
+      const bm = parseFloat(b.cells[8].dataset.minutes) || 999999;
       return sortDir[col] ? am - bm : bm - am;
     }}
-    if (col === 5) {{
-      const ad = a.cells[5].dataset.date || "9999-99-99";
-      const bd = b.cells[5].dataset.date || "9999-99-99";
+    if (col === 6) {{
+      const ad = a.cells[6].dataset.date || "9999-99-99";
+      const bd = b.cells[6].dataset.date || "9999-99-99";
       return sortDir[col] ? ad.localeCompare(bd) : bd.localeCompare(ad);
     }}
+    if (col === 5 || col === 7) {{
+      const an = parseFloat(a.cells[col].textContent) || 0;
+      const bn = parseFloat(b.cells[col].textContent) || 0;
+      return sortDir[col] ? an - bn : bn - an;
+    }}
     let x = a.cells[col].textContent, y = b.cells[col].textContent;
-    if (col === 6) return sortDir[col] ? x - y : y - x;
     return sortDir[col] ? x.localeCompare(y, "de") : y.localeCompare(x, "de");
   }});
   rows.forEach(r => tb.appendChild(r));
@@ -584,7 +675,7 @@ async function calcCommute() {{
     // Update table cells
     rows.forEach(r => {{
       const skz = r.dataset.skz;
-      const cell = r.cells[7];
+      const cell = r.cells[8];
       if (skz && skz in skzToIdx) {{
         const secs = durations[skzToIdx[skz]];
         if (secs !== null) {{
@@ -607,7 +698,7 @@ async function calcCommute() {{
     // Update Google Maps links with user address as origin
     const origin = encodeURIComponent(addr);
     rows.forEach(r => {{
-      const links = r.cells[8];
+      const links = r.cells[9];
       const routeLink = links.querySelector("a");
       if (routeLink) {{
         routeLink.href = routeLink.href + "&origin=" + origin;
@@ -617,8 +708,8 @@ async function calcCommute() {{
     status.textContent = "Fahrzeiten berechnet (Auto, via OSRM)";
 
     // Auto-sort by commute time
-    sortDir[7] = false;
-    sortTable(7);
+    sortDir[8] = false;
+    sortTable(8);
 
   }} catch(e) {{
     status.textContent = "Fehler: " + e.message;
@@ -656,13 +747,18 @@ def main():
     path = save_snapshot(all_postings)
     print(f"Snapshot saved to {path}")
 
-    generate_html(all_postings, geo_cache)
+    if previous is not None:
+        added, removed = diff_postings(previous, all_postings)
+        new_keys = {posting_key(p) for p in added}
+    else:
+        added, removed = [], []
+        new_keys = set()
+
+    generate_html(all_postings, geo_cache, new_keys)
 
     if previous is None:
         print("First run — no previous data to compare.")
         return
-
-    added, removed = diff_postings(previous, all_postings)
 
     if not added and not removed:
         print("No changes since last snapshot.")
