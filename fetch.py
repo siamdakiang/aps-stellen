@@ -466,6 +466,10 @@ tr.hidden {{ display: none; }}
 .link-cell {{ white-space: nowrap; }}
 .link-cell a {{ color: var(--primary); text-decoration: none; font-size: 0.8rem; }}
 .link-cell a:hover {{ text-decoration: underline; }}
+.footer {{ padding: 1.5rem 2rem; text-align: center; font-size: 0.75rem; color: var(--gray-500); border-top: 1px solid var(--gray-200); }}
+.footer a {{ color: var(--gray-500); text-decoration: none; }}
+.footer a:hover {{ color: var(--primary); text-decoration: underline; }}
+.footer span {{ margin: 0 0.5rem; }}
 .badge.new-badge {{ background: #fef3c7; color: #92400e; animation: pulse 2s ease-in-out 3; }}
 @keyframes pulse {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.5; }} }}
 .bew-zero {{ color: var(--green); }}
@@ -717,6 +721,13 @@ async function calcCommute() {{
   btn.disabled = false;
 }}
 </script>
+<div class="footer">
+  <a href="https://github.com/siamdakiang/aps-stellen" target="_blank" rel="noopener">GitHub</a>
+  <span>&middot;</span>
+  Built with <a href="https://claude.ai/claude-code" target="_blank" rel="noopener">Claude Code</a>
+  <span>&middot;</span>
+  ~500k tokens spent
+</div>
 </body>
 </html>"""
 
