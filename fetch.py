@@ -722,11 +722,16 @@ async function calcCommute() {{
 }}
 </script>
 <div class="footer">
-  <a href="https://github.com/siamdakiang/aps-stellen" target="_blank" rel="noopener">GitHub</a>
-  <span>&middot;</span>
-  Built with <a href="https://claude.ai/claude-code" target="_blank" rel="noopener">Claude Code</a>
-  <span>&middot;</span>
-  ~500k tokens spent
+  <div>Daten: <a href="https://info.bildung-ooe.gv.at/stellenAPS.html" target="_blank" rel="noopener">Bildungsdirektion O\u00d6</a> &mdash; t\u00e4glich automatisch aktualisiert</div>
+  <div style="margin-top:0.3rem">
+    Von <strong>Simon Ludwig</strong>
+    <span>&middot;</span>
+    <a href="https://github.com/siamdakiang/aps-stellen" target="_blank" rel="noopener">GitHub</a>
+    <span>&middot;</span>
+    Built with <a href="https://claude.ai/claude-code" target="_blank" rel="noopener">Claude Code</a>
+    <span>&middot;</span>
+    ~500k tokens spent
+  </div>
 </div>
 </body>
 </html>"""
