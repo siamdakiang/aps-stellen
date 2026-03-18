@@ -5,6 +5,7 @@ import json
 import os
 import smtplib
 import sys
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
@@ -15,6 +16,7 @@ import yaml
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
+GEO_CACHE = SCRIPT_DIR / "schools_geo.json"
 
 BEZIRKE = {
     1: "Linz-Stadt", 2: "Steyr-Stadt", 3: "Wels-Stadt", 4: "Braunau",
@@ -47,6 +49,59 @@ def load_config():
 def load_chancenbonus():
     with open(SCRIPT_DIR / "chancenbonus.json") as f:
         return set(json.load(f))
+
+
+def geocode_schools(postings):
+    cache = {}
+    if GEO_CACHE.exists():
+        with open(GEO_CACHE) as f:
+            cache = json.load(f)
+
+    unique_schools = {}
+    for p in postings:
+        skz = p["schulkennzahl"]
+        if skz and skz not in unique_schools:
+            unique_schools[skz] = p
+
+    new_count = 0
+    for skz, p in unique_schools.items():
+        if skz in cache:
+            continue
+        # Build a search query from the school name
+        name = p["school_name"]
+        # Strip the school type prefix code (e.g. "VS 16 " -> "Sonnensteinschule")
+        parts = name.split(",", 1)
+        if len(parts) == 2:
+            query = f"{parts[1].strip()}, {parts[0].strip()}, Oberösterreich, Austria"
+        else:
+            query = f"{name}, Oberösterreich, Austria"
+
+        try:
+            time.sleep(1)  # Nominatim rate limit: 1 req/sec
+            resp = requests.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": query, "format": "json", "limit": 1, "countrycodes": "at"},
+                headers={"User-Agent": "APS-Stellen-Tracker/1.0"},
+                timeout=10,
+            )
+            results = resp.json()
+            if results:
+                cache[skz] = {"lat": float(results[0]["lat"]), "lng": float(results[0]["lon"])}
+                new_count += 1
+                print(f"  Geocoded {skz}: {name} -> {cache[skz]['lat']:.4f}, {cache[skz]['lng']:.4f}")
+            else:
+                cache[skz] = None
+                print(f"  Geocode failed for {skz}: {name}")
+        except Exception as e:
+            cache[skz] = None
+            print(f"  Geocode error for {skz}: {e}")
+
+    if new_count > 0:
+        with open(GEO_CACHE, "w") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+        print(f"Geocoded {new_count} new schools ({sum(1 for v in cache.values() if v)} total with coordinates)")
+
+    return cache
 
 
 def fetch_xml(url):
@@ -195,26 +250,69 @@ def send_email(config, added, removed):
     print(f"Email sent to {', '.join(recipients)}")
 
 
-def generate_html(postings):
+def generate_html(postings, geo_cache=None):
     docs_dir = SCRIPT_DIR / "docs"
     docs_dir.mkdir(exist_ok=True)
 
+    geo_cache = geo_cache or {}
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
     cb_count = sum(1 for p in postings if p["chancenbonus"])
 
+    # Collect unique values for filter chips
+    schultypen = sorted(set(p["schultyp"] for p in postings))
+    regionen = sorted(set(p["bildungsregion"] for p in postings))
+    bezirke = sorted(set(p["bezirk"] for p in postings))
+
+    # Build geo JSON for embedding (only entries with coordinates)
+    geo_json = json.dumps({k: v for k, v in geo_cache.items() if v}, ensure_ascii=False)
+
+    def iso_to_at(iso_date):
+        """Convert YYYY-MM-DD to DD.MM.YYYY."""
+        if not iso_date:
+            return "k.A."
+        try:
+            parts = iso_date.split("-")
+            return f"{parts[2]}.{parts[1]}.{parts[0]}"
+        except (IndexError, ValueError):
+            return iso_date
+
     rows = []
-    for p in sorted(postings, key=lambda x: (x["bildungsregion"], x["bezirk"], x["school_name"])):
-        cb = ' <span class="cb">CB</span>' if p["chancenbonus"] else ""
+    for p in sorted(postings, key=lambda x: (x["befristet_date"] or "9999-99-99", x["school_name"])):
+        cb_badge = ' <span class="badge cb">Chancenbonus</span>' if p["chancenbonus"] else ""
+        skz = p["schulkennzahl"]
+        geo = geo_cache.get(skz)
+        lat_attr = f' data-lat="{geo["lat"]}"' if geo else ""
+        lng_attr = f' data-lng="{geo["lng"]}"' if geo else ""
+        school_for_maps = p["school_name"].replace(",", " ") + ", Oberösterreich, Austria"
+        maps_url = f"https://www.google.com/maps/dir/?api=1&destination={html_esc(school_for_maps)}"
+        iso_date = p["befristet_date"] or ""
+        at_date = iso_to_at(p["befristet_date"])
         rows.append(
-            f"<tr>"
-            f'<td>{html_esc(p["school_name"])}{cb}</td>'
-            f'<td>{html_esc(p["schultyp"])}</td>'
+            f'<tr data-schultyp="{html_esc(p["schultyp"])}" '
+            f'data-region="{html_esc(p["bildungsregion"])}" '
+            f'data-bezirk="{html_esc(p["bezirk"])}" '
+            f'data-cb="{1 if p["chancenbonus"] else 0}" '
+            f'data-skz="{html_esc(skz)}"{lat_attr}{lng_attr}>'
+            f'<td><span class="school-name">{html_esc(p["school_name"])}</span>{cb_badge}</td>'
+            f'<td><span class="badge st-{p["schultyp"][:2].lower()}">{html_esc(p["schultyp"])}</span></td>'
             f'<td>{html_esc(p["bezirk"])}</td>'
             f'<td>{html_esc(p["bildungsregion"])}</td>'
-            f'<td>{html_esc(p["schulfach"])}</td>'
-            f'<td>{html_esc(p["befristet_date"] or "k.A.")}</td>'
-            f'<td>{p["bewerber"]}</td>'
+            f'<td class="fach">{html_esc(p["schulfach"])}</td>'
+            f'<td data-date="{iso_date}">{html_esc(at_date)}</td>'
+            f'<td class="num">{p["bewerber"]}</td>'
+            f'<td class="commute-cell" data-minutes="999999">-</td>'
+            f'<td class="link-cell">'
+            f'<a href="{maps_url}" target="_blank" rel="noopener" title="Route in Google Maps">Route</a>'
+            f' &middot; '
+            f'<a href="https://bewerbung.bildung.gv.at/app/portal/#/app/bewo" target="_blank" rel="noopener" title="Zum Bewerbungsportal">Bewerben</a>'
+            f'</td>'
             f"</tr>"
+        )
+
+    def chips(values, group):
+        return "".join(
+            f'<button class="chip" data-group="{group}" data-value="{html_esc(v)}" onclick="toggleChip(this)">{html_esc(v)}</button>'
+            for v in values
         )
 
     html = f"""<!DOCTYPE html>
@@ -222,56 +320,310 @@ def generate_html(postings):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>APS Stellen OÖ</title>
+<title>APS Stellen O\u00d6</title>
 <style>
-  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 2rem; background: #f8f9fa; color: #212529; }}
-  h1 {{ font-size: 1.4rem; margin-bottom: 0.3rem; }}
-  .meta {{ color: #6c757d; font-size: 0.9rem; margin-bottom: 1.5rem; }}
-  table {{ border-collapse: collapse; width: 100%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-  th, td {{ padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #dee2e6; font-size: 0.85rem; }}
-  th {{ background: #343a40; color: #fff; position: sticky; top: 0; cursor: pointer; }}
-  th:hover {{ background: #495057; }}
-  tr:hover {{ background: #f1f3f5; }}
-  .cb {{ background: #28a745; color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 0.75rem; font-weight: 600; }}
-  input {{ padding: 0.4rem 0.75rem; font-size: 0.9rem; border: 1px solid #ced4da; border-radius: 4px; width: 300px; margin-bottom: 1rem; }}
+:root {{
+  --primary: #1a56db;
+  --primary-light: #e1effe;
+  --green: #059669;
+  --green-light: #d1fae5;
+  --amber: #d97706;
+  --amber-light: #fef3c7;
+  --purple: #7c3aed;
+  --purple-light: #ede9fe;
+  --rose: #e11d48;
+  --rose-light: #ffe4e6;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-500: #6b7280;
+  --gray-700: #374151;
+  --gray-900: #111827;
+}}
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--gray-50); color: var(--gray-900); }}
+.header {{ background: linear-gradient(135deg, var(--primary) 0%, #1e40af 100%); color: #fff; padding: 2rem 2rem 1.5rem; }}
+.header h1 {{ font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }}
+.header .meta {{ color: rgba(255,255,255,0.8); font-size: 0.9rem; }}
+.header .stats {{ display: flex; gap: 1.5rem; margin-top: 1rem; }}
+.stat {{ background: rgba(255,255,255,0.15); border-radius: 8px; padding: 0.6rem 1rem; }}
+.stat .num {{ font-size: 1.4rem; font-weight: 700; }}
+.stat .label {{ font-size: 0.75rem; opacity: 0.85; }}
+.controls {{ padding: 1rem 2rem; background: #fff; border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; z-index: 10; }}
+.search-row {{ display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; }}
+.search-row input {{ flex: 1; min-width: 200px; max-width: 400px; padding: 0.5rem 0.75rem; font-size: 0.9rem; border: 1px solid var(--gray-300); border-radius: 6px; outline: none; }}
+.search-row input:focus {{ border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }}
+.reset-btn, .commute-btn {{ padding: 0.5rem 1rem; font-size: 0.85rem; border: 1px solid var(--gray-300); border-radius: 6px; background: #fff; cursor: pointer; color: var(--gray-700); }}
+.reset-btn:hover, .commute-btn:hover {{ background: var(--gray-100); }}
+.commute-btn {{ border-color: var(--primary); color: var(--primary); font-weight: 600; }}
+.commute-btn:hover {{ background: var(--primary-light); }}
+.commute-btn:disabled {{ opacity: 0.5; cursor: not-allowed; }}
+.commute-row {{ display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; }}
+.commute-row input {{ flex: 1; min-width: 200px; max-width: 400px; padding: 0.5rem 0.75rem; font-size: 0.9rem; border: 1px solid var(--gray-300); border-radius: 6px; outline: none; }}
+.commute-row input:focus {{ border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }}
+.commute-status {{ font-size: 0.8rem; color: var(--gray-500); }}
+.filter-group {{ margin-bottom: 0.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }}
+.filter-label {{ font-size: 0.75rem; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; min-width: 100px; }}
+.chip {{ padding: 0.3rem 0.7rem; font-size: 0.8rem; border-radius: 99px; border: 1px solid var(--gray-300); background: #fff; cursor: pointer; transition: all 0.15s; color: var(--gray-700); }}
+.chip:hover {{ background: var(--gray-100); }}
+.chip.active {{ border-color: var(--primary); background: var(--primary-light); color: var(--primary); font-weight: 600; }}
+.chip.active[data-group="cb"] {{ border-color: var(--green); background: var(--green-light); color: var(--green); }}
+.count {{ font-size: 0.85rem; color: var(--gray-500); padding: 0.75rem 2rem 0.5rem; }}
+.table-wrap {{ padding: 0 2rem 2rem; overflow-x: auto; }}
+table {{ border-collapse: collapse; width: 100%; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }}
+th {{ background: var(--gray-700); color: #fff; padding: 0.6rem 0.75rem; text-align: left; font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; user-select: none; position: sticky; top: 0; }}
+th:hover {{ background: var(--gray-500); }}
+th.sortable::after {{ content: " \u2195"; opacity: 0.4; font-size: 0.7rem; }}
+th.no-sort {{ cursor: default; }}
+th.no-sort:hover {{ background: var(--gray-700); }}
+td {{ padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--gray-100); font-size: 0.85rem; vertical-align: top; }}
+tr:hover td {{ background: #f0f5ff; }}
+tr.hidden {{ display: none; }}
+.school-name {{ font-weight: 500; }}
+.fach {{ max-width: 350px; color: var(--gray-700); }}
+.num {{ text-align: center; font-weight: 600; }}
+.badge {{ display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 0.7rem; font-weight: 600; vertical-align: middle; margin-left: 0.4rem; }}
+.badge.cb {{ background: var(--green-light); color: var(--green); }}
+.badge.st-vo {{ background: var(--primary-light); color: var(--primary); }}
+.badge.st-mi {{ background: var(--purple-light); color: var(--purple); }}
+.badge.st-al {{ background: var(--amber-light); color: var(--amber); }}
+.badge.st-po {{ background: var(--rose-light); color: var(--rose); }}
+.commute-cell {{ text-align: center; white-space: nowrap; }}
+.commute-short {{ color: var(--green); font-weight: 600; }}
+.commute-medium {{ color: var(--amber); font-weight: 600; }}
+.commute-long {{ color: var(--rose); font-weight: 600; }}
+.link-cell {{ white-space: nowrap; }}
+.link-cell a {{ color: var(--primary); text-decoration: none; font-size: 0.8rem; }}
+.link-cell a:hover {{ text-decoration: underline; }}
+@media (max-width: 768px) {{
+  .header, .controls, .table-wrap, .count {{ padding-left: 1rem; padding-right: 1rem; }}
+  .filter-label {{ min-width: auto; width: 100%; }}
+  .header .stats {{ flex-wrap: wrap; gap: 0.75rem; }}
+}}
 </style>
 </head>
 <body>
-<h1>Offene APS-Stellen Oberösterreich</h1>
-<p class="meta">{len(postings)} Stellen ({cb_count} an Chancenbonus-Schulen) &mdash; Stand: {now}</p>
-<input type="text" id="filter" placeholder="Filtern (Schule, Bezirk, Fach...)" onkeyup="filterTable()">
+<div class="header">
+  <h1>Offene APS-Stellen Ober\u00f6sterreich</h1>
+  <div class="meta">Stellenausschreibungen f\u00fcr Landeslehrer im Pflichtschulbereich &mdash; Stand: {now}</div>
+  <div class="stats">
+    <div class="stat"><div class="num">{len(postings)}</div><div class="label">Offene Stellen</div></div>
+    <div class="stat"><div class="num">{cb_count}</div><div class="label">Chancenbonus</div></div>
+    <div class="stat"><div class="num">{len(set(p['schulkennzahl'] for p in postings))}</div><div class="label">Schulen</div></div>
+    <div class="stat"><div class="num">{len(regionen)}</div><div class="label">Regionen</div></div>
+  </div>
+</div>
+<div class="controls">
+  <div class="search-row">
+    <input type="text" id="q" placeholder="Suche (Schule, Fach, Ort...)" oninput="applyFilters()">
+    <button class="reset-btn" onclick="resetAll()">Zur\u00fccksetzen</button>
+  </div>
+  <div class="commute-row">
+    <input type="text" id="address" placeholder="Ihre Adresse eingeben (z.B. Hauptplatz 1, Linz)" onkeydown="if(event.key==='Enter')calcCommute()">
+    <button class="commute-btn" id="commuteBtn" onclick="calcCommute()">Anfahrt berechnen</button>
+    <span class="commute-status" id="commuteStatus"></span>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">Schultyp</span>
+    {chips(schultypen, "schultyp")}
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">Region</span>
+    {chips(regionen, "region")}
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">Bezirk</span>
+    {chips(bezirke, "bezirk")}
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">Sonstiges</span>
+    <button class="chip" data-group="cb" data-value="1" onclick="toggleChip(this)">Nur Chancenbonus</button>
+  </div>
+</div>
+<div class="count" id="count">{len(postings)} Stellen angezeigt</div>
+<div class="table-wrap">
 <table id="stellen">
 <thead><tr>
-<th onclick="sortTable(0)">Schule</th>
-<th onclick="sortTable(1)">Schultyp</th>
-<th onclick="sortTable(2)">Bezirk</th>
-<th onclick="sortTable(3)">Region</th>
-<th onclick="sortTable(4)">Fach / Details</th>
-<th onclick="sortTable(5)">Frist</th>
-<th onclick="sortTable(6)">Bewerber</th>
+<th class="sortable" onclick="sortTable(0)">Schule</th>
+<th class="sortable" onclick="sortTable(1)">Schultyp</th>
+<th class="sortable" onclick="sortTable(2)">Bezirk</th>
+<th class="sortable" onclick="sortTable(3)">Region</th>
+<th class="sortable" onclick="sortTable(4)">Fach / Details</th>
+<th class="sortable" onclick="sortTable(5)">Frist</th>
+<th class="sortable" onclick="sortTable(6)">Bewerber</th>
+<th class="sortable" onclick="sortTable(7)">Anfahrt</th>
+<th class="no-sort">Links</th>
 </tr></thead>
 <tbody>
 {"".join(rows)}
 </tbody>
 </table>
+</div>
 <script>
-function filterTable() {{
-  const q = document.getElementById("filter").value.toLowerCase();
-  document.querySelectorAll("#stellen tbody tr").forEach(r => {{
-    r.style.display = r.textContent.toLowerCase().includes(q) ? "" : "none";
-  }});
+const GEO = {geo_json};
+const filters = {{ schultyp: new Set(), region: new Set(), bezirk: new Set(), cb: new Set() }};
+
+function toggleChip(el) {{
+  const g = el.dataset.group, v = el.dataset.value;
+  if (filters[g].has(v)) {{ filters[g].delete(v); el.classList.remove("active"); }}
+  else {{ filters[g].add(v); el.classList.add("active"); }}
+  applyFilters();
 }}
+
+function applyFilters() {{
+  const q = document.getElementById("q").value.toLowerCase();
+  let shown = 0;
+  document.querySelectorAll("#stellen tbody tr").forEach(r => {{
+    let vis = true;
+    if (q && !r.textContent.toLowerCase().includes(q)) vis = false;
+    if (vis && filters.schultyp.size && !filters.schultyp.has(r.dataset.schultyp)) vis = false;
+    if (vis && filters.region.size && !filters.region.has(r.dataset.region)) vis = false;
+    if (vis && filters.bezirk.size && !filters.bezirk.has(r.dataset.bezirk)) vis = false;
+    if (vis && filters.cb.size && r.dataset.cb !== "1") vis = false;
+    r.classList.toggle("hidden", !vis);
+    if (vis) shown++;
+  }});
+  document.getElementById("count").textContent = shown + " Stellen angezeigt";
+}}
+
+function resetAll() {{
+  document.getElementById("q").value = "";
+  for (const g in filters) filters[g].clear();
+  document.querySelectorAll(".chip.active").forEach(c => c.classList.remove("active"));
+  document.querySelectorAll(".commute-cell").forEach(c => {{ c.textContent = "-"; c.className = "commute-cell"; c.dataset.minutes = "999999"; }});
+  document.getElementById("address").value = "";
+  document.getElementById("commuteStatus").textContent = "";
+  applyFilters();
+}}
+
 let sortDir = {{}};
 function sortTable(col) {{
   const tb = document.querySelector("#stellen tbody");
   const rows = Array.from(tb.rows);
   sortDir[col] = !sortDir[col];
   rows.sort((a, b) => {{
+    if (col === 7) {{
+      const am = parseFloat(a.cells[7].dataset.minutes) || 999999;
+      const bm = parseFloat(b.cells[7].dataset.minutes) || 999999;
+      return sortDir[col] ? am - bm : bm - am;
+    }}
+    if (col === 5) {{
+      const ad = a.cells[5].dataset.date || "9999-99-99";
+      const bd = b.cells[5].dataset.date || "9999-99-99";
+      return sortDir[col] ? ad.localeCompare(bd) : bd.localeCompare(ad);
+    }}
     let x = a.cells[col].textContent, y = b.cells[col].textContent;
     if (col === 6) return sortDir[col] ? x - y : y - x;
     return sortDir[col] ? x.localeCompare(y, "de") : y.localeCompare(x, "de");
   }});
   rows.forEach(r => tb.appendChild(r));
+}}
+
+async function calcCommute() {{
+  const addr = document.getElementById("address").value.trim();
+  if (!addr) return;
+  const btn = document.getElementById("commuteBtn");
+  const status = document.getElementById("commuteStatus");
+  btn.disabled = true;
+  status.textContent = "Adresse wird gesucht...";
+
+  try {{
+    // Geocode user address via Nominatim
+    const geoResp = await fetch(
+      "https://nominatim.openstreetmap.org/search?" + new URLSearchParams({{
+        q: addr, format: "json", limit: "1", countrycodes: "at"
+      }}), {{ headers: {{ "User-Agent": "APS-Stellen-Tracker/1.0" }} }}
+    );
+    const geoData = await geoResp.json();
+    if (!geoData.length) {{
+      status.textContent = "Adresse nicht gefunden. Bitte genauer eingeben.";
+      btn.disabled = false;
+      return;
+    }}
+    const userLat = parseFloat(geoData[0].lat);
+    const userLng = parseFloat(geoData[0].lon);
+    status.textContent = "Fahrzeiten werden berechnet...";
+
+    // Collect all unique school coordinates
+    const rows = document.querySelectorAll("#stellen tbody tr");
+    const schoolCoords = [];
+    const skzToIdx = {{}};
+    rows.forEach(r => {{
+      const skz = r.dataset.skz;
+      if (skz && GEO[skz] && !(skz in skzToIdx)) {{
+        skzToIdx[skz] = schoolCoords.length;
+        schoolCoords.push(GEO[skz]);
+      }}
+    }});
+
+    if (!schoolCoords.length) {{
+      status.textContent = "Keine Schulkoordinaten verfügbar.";
+      btn.disabled = false;
+      return;
+    }}
+
+    // Build OSRM table request: user as source, all schools as destinations
+    const coords = [[userLng, userLat], ...schoolCoords.map(c => [c.lng, c.lat])];
+    const coordStr = coords.map(c => c[0] + "," + c[1]).join(";");
+    const destIndices = schoolCoords.map((_, i) => i + 1).join(";");
+    const osrmUrl = "https://router.project-osrm.org/table/v1/driving/" + coordStr
+      + "?sources=0&destinations=" + destIndices + "&annotations=duration";
+
+    const osrmResp = await fetch(osrmUrl);
+    const osrmData = await osrmResp.json();
+
+    if (osrmData.code !== "Ok") {{
+      status.textContent = "Routenberechnung fehlgeschlagen. Bitte erneut versuchen.";
+      btn.disabled = false;
+      return;
+    }}
+
+    const durations = osrmData.durations[0]; // seconds from user to each school
+
+    // Update table cells
+    rows.forEach(r => {{
+      const skz = r.dataset.skz;
+      const cell = r.cells[7];
+      if (skz && skz in skzToIdx) {{
+        const secs = durations[skzToIdx[skz]];
+        if (secs !== null) {{
+          const mins = Math.round(secs / 60);
+          cell.textContent = mins + " min";
+          cell.dataset.minutes = mins;
+          if (mins <= 20) cell.className = "commute-cell commute-short";
+          else if (mins <= 45) cell.className = "commute-cell commute-medium";
+          else cell.className = "commute-cell commute-long";
+        }} else {{
+          cell.textContent = "k.A.";
+          cell.dataset.minutes = "999999";
+        }}
+      }} else {{
+        cell.textContent = "k.A.";
+        cell.dataset.minutes = "999999";
+      }}
+    }});
+
+    // Update Google Maps links with user address as origin
+    const origin = encodeURIComponent(addr);
+    rows.forEach(r => {{
+      const links = r.cells[8];
+      const routeLink = links.querySelector("a");
+      if (routeLink) {{
+        routeLink.href = routeLink.href + "&origin=" + origin;
+      }}
+    }});
+
+    status.textContent = "Fahrzeiten berechnet (Auto, via OSRM)";
+
+    // Auto-sort by commute time
+    sortDir[7] = false;
+    sortTable(7);
+
+  }} catch(e) {{
+    status.textContent = "Fehler: " + e.message;
+  }}
+  btn.disabled = false;
 }}
 </script>
 </body>
@@ -297,11 +649,14 @@ def main():
     all_postings = parse_xml(xml_text, chancenbonus_codes)
     print(f"Parsed {len(all_postings)} postings ({sum(1 for p in all_postings if p['chancenbonus'])} at Chancenbonus schools)")
 
+    print("Geocoding schools...")
+    geo_cache = geocode_schools(all_postings)
+
     previous = load_previous()
     path = save_snapshot(all_postings)
     print(f"Snapshot saved to {path}")
 
-    generate_html(all_postings)
+    generate_html(all_postings, geo_cache)
 
     if previous is None:
         print("First run — no previous data to compare.")
