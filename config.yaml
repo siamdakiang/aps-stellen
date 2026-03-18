@@ -1,0 +1,14 @@
+# Data source
+url: "https://info.bildung-ooe.gv.at/data/Bewerbung_APS.xml"
+
+# Filters (empty list = match all)
+filters:
+  schultyp: []              # e.g. ["Volksschule", "Mittelschule"]
+  bildungsregion: []        # e.g. ["Linz", "Mühlviertel"]
+  bezirk: []                # e.g. ["Linz-Stadt", "Urfahr-Umgebung"]
+  chancenbonus_only: false  # true = only show postings at Chancenbonus schools
+
+# Email notification — all credentials via env vars / GitHub secrets:
+#   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM, EMAIL_TO
+email:
+  enabled: true
