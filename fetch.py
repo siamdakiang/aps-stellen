@@ -210,8 +210,18 @@ def apply_filters(postings, filters):
     return result
 
 
+def normalize_for_key(text):
+    """Normalize text for stable key generation: collapse whitespace, normalize punctuation."""
+    text = text.lower().strip()
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\s*,\s*', ',', text)
+    text = re.sub(r'\s*\(\s*', '(', text)
+    text = re.sub(r'\s*\)\s*', ')', text)
+    return text
+
+
 def posting_key(p):
-    return f"{p['dienststelle']}|{p['schulfach']}"
+    return f"{p['dienststelle']}|{normalize_for_key(p['schulfach'])}"
 
 
 def load_previous():
@@ -237,6 +247,15 @@ def diff_postings(previous, current):
 
     added = [curr_keys[k] for k in curr_keys if k not in prev_keys]
     removed = [prev_keys[k] for k in prev_keys if k not in curr_keys]
+
+    # Transition guard: if >80% appear "new", it's likely a key format change
+    # (e.g. after deploying normalization). Fall back to dienststelle-only matching.
+    if previous and len(added) > 0.8 * len(current):
+        prev_dien = {p['dienststelle']: p for p in previous}
+        curr_dien = {p['dienststelle']: p for p in current}
+        added = [curr_dien[d] for d in curr_dien if d not in prev_dien]
+        removed = [prev_dien[d] for d in prev_dien if d not in curr_dien]
+
     return added, removed
 
 
@@ -248,6 +267,100 @@ def format_posting(p):
         f"    Fach: {p['schulfach']}\n"
         f"    Frist: {p['befristet_date'] or 'k.A.'} | Bewerber: {p['bewerber']}"
     )
+
+
+def format_html_email(added, removed):
+    """Generate a styled HTML email body for posting changes."""
+    date_str = datetime.now().strftime("%d.%m.%Y")
+
+    def iso_to_at(iso_date):
+        if not iso_date:
+            return "k.A."
+        try:
+            parts = iso_date.split("-")
+            return f"{parts[2]}.{parts[1]}.{parts[0]}"
+        except (IndexError, ValueError):
+            return iso_date
+
+    def posting_rows(postings):
+        rows = []
+        for p in postings:
+            cb_tag = (' <span style="background:#d1fae5;color:#059669;padding:2px 8px;'
+                       'border-radius:12px;font-size:11px;font-weight:600;">Chancenbonus</span>'
+                       if p.get("chancenbonus") else "")
+            bg = "#f0fdf4" if p.get("chancenbonus") else "#ffffff"
+            frist = iso_to_at(p.get("befristet_date"))
+            rows.append(
+                f'<tr style="background:{bg};">'
+                f'<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:500;">'
+                f'{p.get("school_name", "")}{cb_tag}</td>'
+                f'<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">{p.get("schultyp", "")}</td>'
+                f'<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">{p.get("bezirk", "")}</td>'
+                f'<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">{p.get("fach_label", "")}</td>'
+                f'<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">'
+                f'{p.get("hours", 0)}h</td>'
+                f'<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">{frist}</td>'
+                f'<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;'
+                f'{"color:#059669;font-weight:600;" if p.get("bewerber", 0) == 0 else ""}">'
+                f'{p.get("bewerber", 0)}</td>'
+                f'</tr>'
+            )
+        return "\n".join(rows)
+
+    table_head = (
+        '<tr style="background:#374151;color:#fff;">'
+        '<th style="padding:8px 12px;text-align:left;font-size:13px;">Schule</th>'
+        '<th style="padding:8px 12px;text-align:left;font-size:13px;">Schultyp</th>'
+        '<th style="padding:8px 12px;text-align:left;font-size:13px;">Bezirk</th>'
+        '<th style="padding:8px 12px;text-align:left;font-size:13px;">Fach</th>'
+        '<th style="padding:8px 12px;text-align:center;font-size:13px;">Stunden</th>'
+        '<th style="padding:8px 12px;text-align:left;font-size:13px;">Frist</th>'
+        '<th style="padding:8px 12px;text-align:center;font-size:13px;">Bewerber</th>'
+        '</tr>'
+    )
+
+    parts = [
+        '<!DOCTYPE html><html><head><meta charset="utf-8"></head>',
+        '<body style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;'
+        'margin:0;padding:0;background:#f3f4f6;">',
+        '<div style="background:linear-gradient(135deg,#1a56db,#1e40af);color:#fff;padding:24px 32px;">',
+        '<h1 style="margin:0;font-size:20px;">APS Stellen Update</h1>',
+        f'<p style="margin:4px 0 0;opacity:0.85;font-size:14px;">{date_str} &mdash; '
+        f'{len(added)} neue, {len(removed)} entfernte Stellen</p>',
+        '</div>',
+        '<div style="padding:24px 32px;">',
+    ]
+
+    if added:
+        parts.append(f'<h2 style="color:#059669;font-size:16px;margin:16px 0 8px;">'
+                      f'&#x2795; {len(added)} Neue Stellen</h2>')
+        parts.append('<table style="border-collapse:collapse;width:100%;background:#fff;'
+                      'border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">')
+        parts.append(table_head)
+        parts.append(posting_rows(added))
+        parts.append('</table>')
+
+    if removed:
+        parts.append(f'<h2 style="color:#e11d48;font-size:16px;margin:24px 0 8px;">'
+                      f'&#x274c; {len(removed)} Entfernte Stellen</h2>')
+        parts.append('<table style="border-collapse:collapse;width:100%;background:#fff;'
+                      'border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">')
+        parts.append(table_head)
+        parts.append(posting_rows(removed))
+        parts.append('</table>')
+
+    parts.extend([
+        '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;'
+        'font-size:13px;color:#6b7280;">',
+        '<p><a href="https://siamdakiang.github.io/aps-stellen/" style="color:#1a56db;">'
+        'Dashboard ansehen</a>',
+        ' &middot; <a href="https://bewerbung.bildung.gv.at/app/portal/#/app/bewo" '
+        'style="color:#1a56db;">Zum Bewerbungsportal</a></p>',
+        '</div>',
+        '</div></body></html>',
+    ])
+
+    return "\n".join(parts)
 
 
 def send_email(config, added, removed):
@@ -267,23 +380,9 @@ def send_email(config, added, removed):
 
     recipients = [addr.strip() for addr in email_to.split(",")]
 
-    lines = [f"APS Stellen Update — {datetime.now().strftime('%Y-%m-%d')}\n"]
+    body = format_html_email(added, removed)
 
-    if added:
-        lines.append(f"=== {len(added)} NEUE Stellen ===\n")
-        for p in added:
-            lines.append(format_posting(p))
-            lines.append("")
-
-    if removed:
-        lines.append(f"=== {len(removed)} ENTFERNTE Stellen ===\n")
-        for p in removed:
-            lines.append(format_posting(p))
-            lines.append("")
-
-    body = "\n".join(lines)
-
-    msg = MIMEText(body, "plain", "utf-8")
+    msg = MIMEText(body, "html", "utf-8")
     msg["Subject"] = f"APS Stellen: {len(added)} neu, {len(removed)} entfernt — {datetime.now().strftime('%d.%m.%Y')}"
     msg["From"] = email_from
     msg["To"] = ", ".join(recipients)
@@ -438,7 +537,8 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans
 .chip {{ padding: 0.3rem 0.7rem; font-size: 0.8rem; border-radius: 99px; border: 1px solid var(--gray-300); background: #fff; cursor: pointer; transition: all 0.15s; color: var(--gray-700); }}
 .chip:hover {{ background: var(--gray-100); }}
 .chip.active {{ border-color: var(--primary); background: var(--primary-light); color: var(--primary); font-weight: 600; }}
-.chip.active[data-group="cb"] {{ border-color: var(--green); background: var(--green-light); color: var(--green); }}
+.chip.active[data-group="cb"][data-value="1"] {{ border-color: var(--green); background: var(--green-light); color: var(--green); }}
+.chip.active[data-group="cb"][data-value="0"] {{ border-color: var(--rose); background: var(--rose-light); color: var(--rose); }}
 .count {{ font-size: 0.85rem; color: var(--gray-500); padding: 0.75rem 2rem 0.5rem; }}
 .table-wrap {{ padding: 0 2rem 2rem; overflow-x: auto; }}
 table {{ border-collapse: collapse; width: 100%; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }}
@@ -524,6 +624,7 @@ tr.hidden {{ display: none; }}
   <div class="filter-group">
     <span class="filter-label">Sonstiges</span>
     <button class="chip" data-group="cb" data-value="1" onclick="toggleChip(this)">Nur Chancenbonus</button>
+    <button class="chip" data-group="cb" data-value="0" onclick="toggleChip(this)">Ohne Chancenbonus</button>
     <button class="chip" data-group="new" data-value="1" onclick="toggleChip(this)">Nur neue Stellen</button>
     <button class="chip" data-group="nobew" data-value="1" onclick="toggleChip(this)">Ohne Bewerber</button>
   </div>
@@ -569,7 +670,7 @@ function applyFilters() {{
     if (vis && filters.region.size && !filters.region.has(r.dataset.region)) vis = false;
     if (vis && filters.bezirk.size && !filters.bezirk.has(r.dataset.bezirk)) vis = false;
     if (vis && filters.hbucket.size && !filters.hbucket.has(r.dataset.hbucket)) vis = false;
-    if (vis && filters.cb.size && r.dataset.cb !== "1") vis = false;
+    if (vis && filters.cb.size && !filters.cb.has(r.dataset.cb)) vis = false;
     if (vis && filters["new"].size && r.dataset.new !== "1") vis = false;
     if (vis && filters.nobew.size && r.dataset.bew !== "0") vis = false;
     r.classList.toggle("hidden", !vis);
@@ -674,6 +775,7 @@ async function calcCommute() {{
       return;
     }}
 
+    const RUSH_MULTIPLIER = 1.2; // 6:30-7:30 early rush hour
     const durations = osrmData.durations[0]; // seconds from user to each school
 
     // Update table cells
@@ -683,11 +785,11 @@ async function calcCommute() {{
       if (skz && skz in skzToIdx) {{
         const secs = durations[skzToIdx[skz]];
         if (secs !== null) {{
-          const mins = Math.round(secs / 60);
-          cell.textContent = mins + " min";
+          const mins = Math.round((secs * RUSH_MULTIPLIER) / 60);
+          cell.textContent = "~" + mins + " min";
           cell.dataset.minutes = mins;
-          if (mins <= 20) cell.className = "commute-cell commute-short";
-          else if (mins <= 45) cell.className = "commute-cell commute-medium";
+          if (mins <= 25) cell.className = "commute-cell commute-short";
+          else if (mins <= 50) cell.className = "commute-cell commute-medium";
           else cell.className = "commute-cell commute-long";
         }} else {{
           cell.textContent = "k.A.";
@@ -709,7 +811,7 @@ async function calcCommute() {{
       }}
     }});
 
-    status.textContent = "Fahrzeiten berechnet (Auto, via OSRM)";
+    status.textContent = "Typische Pendelzeit (Auto, 6:30\u20137:30 Uhr)";
 
     // Auto-sort by commute time
     sortDir[8] = false;
