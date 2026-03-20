@@ -1,0 +1,202 @@
+{
+  "401581": {
+    "stats": {
+      "students": 278,
+      "classes": 13,
+      "address": "Allendeplatz 1, 4030 Linz",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "402121": {
+    "stats": {
+      "students": 142,
+      "classes": 8,
+      "address": "Plenklberg, Karl-Punzer-Straße 3, 4400 Steyr",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "403041": {
+    "stats": {
+      "students": 267,
+      "classes": 12,
+      "address": "Vogelweide, Dr. Breitwieserstraße 1, 4603 Wels",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "403101": {
+    "stats": {
+      "students": 314,
+      "classes": 14,
+      "address": "Lichtenegg, Schulstraße 2, 4600 Wels",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "404021": {
+    "stats": {
+      "students": 239,
+      "classes": 12,
+      "address": "Schulgasse 23, 4950 Altheim",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "404331": {
+    "stats": {
+      "students": 126,
+      "classes": 7,
+      "address": "Schulstraße 5, 5145 Neukirchen an der Enknach",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "407022": {
+    "stats": {
+      "students": 212,
+      "classes": 11,
+      "address": "Pestalozziplatz 2, 4802 Ebensee",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "407023": {
+    "stats": {
+      "students": 150,
+      "classes": 12,
+      "address": "Spitalstraße 10, 4810 Gmunden",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "408082": {
+    "stats": {
+      "students": 123,
+      "classes": 8,
+      "address": "Pühretstraße 16, 4724 Neukirchen am Walde",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "408092": {
+    "stats": {
+      "students": 159,
+      "classes": 8,
+      "address": "Schulstraße 20, 4720 Neumarkt im Hausruckkreis",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "408671": {
+    "stats": {
+      "students": 111,
+      "classes": 7,
+      "address": "Vischerstraße 4, 4723 Natternbach",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "408691": {
+    "stats": {
+      "students": 60,
+      "classes": 3,
+      "address": "Schulstraße 18, 4720 Neumarkt im Hausruckkreis",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "409181": {
+    "stats": {
+      "students": 102,
+      "classes": 6,
+      "address": "Hauptstraße 45, 4542 Nußbach",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "410051": {
+    "stats": {
+      "students": 177,
+      "classes": 9,
+      "address": "Kremsdorf, Volksheimstraße 11, 4053 Haid bei Ansfelden",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "410371": {
+    "stats": {
+      "students": 281,
+      "classes": 14,
+      "address": "Limesstraße 4, 4060 Leonding",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "411031": {
+    "stats": {
+      "students": 93,
+      "classes": 5,
+      "address": "Baumgartenberg 56, 4342 Baumgartenberg",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "412151": {
+    "stats": {
+      "students": 57,
+      "classes": 4,
+      "address": "Lambrechten 33, 4772 Lambrechten",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "414171": {
+    "stats": {
+      "students": 98,
+      "classes": 5,
+      "address": "Schulstraße 20, 4774 St. Marienkirchen bei Schärding",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "414191": {
+    "stats": {
+      "students": 130,
+      "classes": 8,
+      "address": "Schulgasse 9, 4792 Münzkirchen",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "415072": {
+    "stats": {
+      "students": 185,
+      "classes": 10,
+      "address": "Schulstraße 11, 3335 Weyer",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "415311": {
+    "stats": {
+      "students": 163,
+      "classes": 9,
+      "address": "Josef Bachbauer Str.6, 3335 Weyer",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "416021": {
+    "stats": {
+      "students": 236,
+      "classes": 12,
+      "address": "Schulstraße 16, 4203 Altenberg bei Linz",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "416042": {
+    "stats": {
+      "students": 222,
+      "classes": 11,
+      "address": "A.-Stifter-Straße 27, 4190 Bad Leonfelden",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "418191": {
+    "stats": {
+      "students": 214,
+      "classes": 11,
+      "address": "Maximilian Paglstraße 36, 4651 Stadl-Paura",
+      "fetched_at": "2026-03-20"
+    }
+  },
+  "401072": {
+    "stats": {
+      "students": 254,
+      "classes": 11,
+      "address": "Keplerstraße 13a, 4040 Linz",
+      "fetched_at": "2026-03-20"
+    }
+  }
+}

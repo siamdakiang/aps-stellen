@@ -5,6 +5,7 @@ import json
 import os
 import re
 import smtplib
+import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
@@ -18,6 +19,35 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
 GEO_CACHE = SCRIPT_DIR / "schools_geo.json"
+PROFILES_CACHE = SCRIPT_DIR / "school_profiles.json"
+
+FACILITY_KEYWORDS = {
+    "smartboard": "Smartboard",
+    "activepanel": "Smartboard",
+    "beamer": "Beamer",
+    "schulgarten": "Schulgarten",
+    "ganztagsschule": "Ganztags",
+    "ganztägig": "Ganztags",
+    "nachmittagsbetreuung": "Nachmittagsbetreuung",
+    "bibliothek": "Bibliothek",
+    "turnsaal": "Turnsaal",
+    "turnhalle": "Turnsaal",
+    "ipad": "iPads/Tablets",
+    "tablet": "iPads/Tablets",
+    "wlan": "WLAN",
+    "digitale grundbildung": "Digitale Schule",
+    "werkraum": "Werkraum",
+    "musikraum": "Musikraum",
+}
+
+STATISTIK_WFS_URL = (
+    "https://www.statistik.at/gs-atlas/ATLAS_SCHULE_WFS/ows"
+    "?service=WFS&version=1.0.0&request=GetFeature"
+    "&typeName=ATLAS_SCHULE_WFS:ATLAS_SCHULE"
+    "&outputFormat=application%2Fjson"
+    "&CQL_FILTER=GMNR%20LIKE%20%274%25%27"
+    "&srsName=EPSG:4326&maxFeatures=2000"
+)
 
 BEZIRKE = {
     1: "Linz-Stadt", 2: "Steyr-Stadt", 3: "Wels-Stadt", 4: "Braunau",
@@ -103,6 +133,257 @@ def geocode_schools(postings):
         print(f"Geocoded {new_count} new schools ({sum(1 for v in cache.values() if v)} total with coordinates)")
 
     return cache
+
+
+def fetch_school_stats():
+    """Fetch school statistics for all OÖ schools from Statistik Austria WFS."""
+    try:
+        resp = requests.get(STATISTIK_WFS_URL, timeout=30,
+                            headers={"User-Agent": "APS-Stellen-Tracker/1.0"})
+        resp.raise_for_status()
+        data = resp.json()
+        stats = {}
+        for feature in data.get("features", []):
+            props = feature.get("properties", {})
+            skz = props.get("SKZ")
+            if not skz:
+                continue
+            stats[skz] = {
+                "name": props.get("BEZEICHNUNG", ""),
+                "address": f'{props.get("STR", "")}, {props.get("PLZ", "")} {props.get("ORT", "")}',
+                "students": props.get("SCHUELER_INSG"),
+                "classes": props.get("KLASSEN"),
+                "school_type": props.get("KARTO_TYP", ""),
+            }
+        print(f"  Fetched stats for {len(stats)} OÖ schools from Statistik Austria")
+        return stats
+    except Exception as e:
+        print(f"  Warning: Could not fetch school stats: {e}")
+        return {}
+
+
+def scrape_facility_keywords(url):
+    """Fetch a school website and scan for facility keywords."""
+    try:
+        resp = requests.get(url, timeout=10,
+                            headers={"User-Agent": "APS-Stellen-Tracker/1.0"})
+        resp.raise_for_status()
+        text = resp.text.lower()
+        found = set()
+        for keyword, label in FACILITY_KEYWORDS.items():
+            if keyword in text:
+                found.add(label)
+        return sorted(found)
+    except Exception:
+        return []
+
+
+def find_school_website(skz, school_name):
+    """Try to find a school's website URL using common OÖ school URL patterns."""
+    # Try eduhi.at pattern (common for OÖ schools)
+    # Also try searching Nominatim/OSM for website tag
+    # For now, construct eduhi.at search URL and try it
+    patterns = []
+
+    # Extract school type prefix and number (e.g., "VS 16" from "VS 16 Linz, Sonnensteinschule")
+    m = re.match(r'(VS|MS|ASO|PTS)\s*(\d+)?\s*(.*)', school_name)
+    if m:
+        stype = m.group(1).lower()
+        num = m.group(2) or ""
+        rest = m.group(3).strip().rstrip(",").strip()
+        city = rest.split(",")[0].strip().lower() if "," in rest else rest.lower()
+        # Common URL patterns
+        if num:
+            patterns.append(f"https://{stype}{num}{city}.eduhi.at")
+            patterns.append(f"https://www.{stype}{num}{city}.at")
+        patterns.append(f"https://{stype}-{city}.eduhi.at")
+
+    for url in patterns:
+        try:
+            resp = requests.head(url, timeout=5, allow_redirects=True,
+                                 headers={"User-Agent": "APS-Stellen-Tracker/1.0"})
+            if resp.status_code < 400:
+                return resp.url
+        except Exception:
+            continue
+    return None
+
+
+def enrich_school_profiles(postings, geo_cache):
+    """Enrich school profiles with stats and facility data."""
+    cache = {}
+    if PROFILES_CACHE.exists():
+        with open(PROFILES_CACHE) as f:
+            cache = json.load(f)
+
+    # Collect unique schools from postings
+    unique_schools = {}
+    for p in postings:
+        skz = p["schulkennzahl"]
+        if skz and skz not in unique_schools:
+            unique_schools[skz] = p
+
+    now_str = datetime.now().strftime("%Y-%m-%d")
+    new_count = 0
+
+    # Fetch all OÖ school stats in one batch request
+    needs_stats = any(
+        skz not in cache or not cache.get(skz, {}).get("stats")
+        for skz in unique_schools
+    )
+    all_stats = {}
+    if needs_stats:
+        all_stats = fetch_school_stats()
+
+    for skz, p in unique_schools.items():
+        if skz not in cache:
+            cache[skz] = {}
+
+        profile = cache[skz]
+
+        # Stats: update if missing
+        if not profile.get("stats") and skz in all_stats:
+            st = all_stats[skz]
+            profile["stats"] = {
+                "students": st["students"],
+                "classes": st["classes"],
+                "address": st["address"],
+                "fetched_at": now_str,
+            }
+            new_count += 1
+
+        # Facilities: scrape website if not yet done
+        if not profile.get("facilities"):
+            # Try to find school website
+            website_url = profile.get("website_url")
+            if not website_url:
+                website_url = find_school_website(skz, p["school_name"])
+                if website_url:
+                    profile["website_url"] = website_url
+                    time.sleep(0.5)
+
+            if website_url:
+                keywords = scrape_facility_keywords(website_url)
+                profile["facilities"] = {
+                    "keywords": keywords,
+                    "fetched_at": now_str,
+                }
+                new_count += 1
+                time.sleep(0.5)
+
+    if new_count > 0:
+        with open(PROFILES_CACHE, "w") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+        print(f"  Enriched {new_count} school profiles")
+
+    return cache
+
+
+def import_community_reviews(profiles):
+    """Import approved school reviews from GitHub Issues via gh CLI."""
+    try:
+        result = subprocess.run(
+            ["gh", "issue", "list",
+             "--label", "school-review",
+             "--label", "approved",
+             "--state", "all",
+             "--json", "number,title,body",
+             "--limit", "500"],
+            capture_output=True, text=True, timeout=30,
+            cwd=SCRIPT_DIR,
+        )
+        if result.returncode != 0:
+            return profiles
+
+        issues = json.loads(result.stdout) if result.stdout.strip() else []
+        if not issues:
+            return profiles
+
+        # Parse each issue and aggregate reviews by SKZ
+        reviews_by_skz = {}
+        for issue in issues:
+            body = issue.get("body", "")
+            # Parse structured GitHub Issue form responses
+            skz = _extract_field(body, "Schulkennzahl")
+            if not skz or len(skz) != 6:
+                continue
+
+            review = {
+                "fuehrung": _extract_rating(body, "Führung"),
+                "team": _extract_rating(body, "Team"),
+                "ausstattung": _extract_rating(body, "Ausstattung"),
+                "atmosphaere": _extract_rating(body, "Atmosphäre"),
+                "fuehrung_text": _extract_field(body, "Kommentar zur Führung"),
+                "team_text": _extract_field(body, "Kommentar zum Team"),
+                "ausstattung_text": _extract_field(body, "Kommentar zur Ausstattung"),
+                "atmosphaere_text": _extract_field(body, "Kommentar zur Atmosphäre"),
+                "extra": _extract_field(body, "Sonstiges"),
+            }
+
+            if skz not in reviews_by_skz:
+                reviews_by_skz[skz] = []
+            reviews_by_skz[skz].append(review)
+
+        # Aggregate into profiles
+        changed = False
+        for skz, reviews in reviews_by_skz.items():
+            if skz not in profiles:
+                profiles[skz] = {}
+
+            community = {"review_count": len(reviews)}
+            for dim in ["fuehrung", "team", "ausstattung", "atmosphaere"]:
+                scores = [r[dim] for r in reviews if r[dim]]
+                comments = [r[f"{dim}_text"] for r in reviews if r.get(f"{dim}_text")]
+                community[dim] = {
+                    "avg": round(sum(scores) / len(scores), 1) if scores else None,
+                    "comments": comments,
+                }
+
+            # Overall average
+            all_scores = []
+            for dim in ["fuehrung", "team", "ausstattung", "atmosphaere"]:
+                if community[dim]["avg"]:
+                    all_scores.append(community[dim]["avg"])
+            community["overall_avg"] = round(sum(all_scores) / len(all_scores), 1) if all_scores else None
+            community["updated_at"] = datetime.now().strftime("%Y-%m-%d")
+
+            profiles[skz]["community"] = community
+            changed = True
+
+        if changed:
+            with open(PROFILES_CACHE, "w") as f:
+                json.dump(profiles, f, ensure_ascii=False, indent=2)
+            print(f"  Imported community reviews for {len(reviews_by_skz)} schools")
+
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        # gh CLI not available or timeout — skip silently
+        pass
+    except Exception as e:
+        print(f"  Warning: Could not import community reviews: {e}")
+
+    return profiles
+
+
+def _extract_field(body, label):
+    """Extract a field value from GitHub Issue form body."""
+    # GitHub Issue forms use "### Label\n\nValue" format
+    pattern = rf'### {re.escape(label)}\s*\n\n(.+?)(?:\n\n###|\Z)'
+    m = re.search(pattern, body, re.DOTALL)
+    if m:
+        val = m.group(1).strip()
+        if val and val != "_No response_":
+            return val
+    return ""
+
+
+def _extract_rating(body, label):
+    """Extract a numeric rating from GitHub Issue form dropdown."""
+    val = _extract_field(body, label)
+    if val:
+        m = re.match(r'(\d)', val)
+        if m:
+            return int(m.group(1))
+    return None
 
 
 def fetch_xml(url):
@@ -395,12 +676,13 @@ def send_email(config, added, removed):
     print(f"Email sent to {', '.join(recipients)}")
 
 
-def generate_html(postings, geo_cache=None, new_keys=None):
+def generate_html(postings, geo_cache=None, new_keys=None, profiles=None):
     docs_dir = SCRIPT_DIR / "docs"
     docs_dir.mkdir(exist_ok=True)
 
     geo_cache = geo_cache or {}
     new_keys = new_keys or set()
+    profiles = profiles or {}
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
     cb_count = sum(1 for p in postings if p["chancenbonus"])
     new_count = sum(1 for p in postings if posting_key(p) in new_keys)
@@ -422,6 +704,9 @@ def generate_html(postings, geo_cache=None, new_keys=None):
 
     # Build geo JSON for embedding (only entries with coordinates)
     geo_json = json.dumps({k: v for k, v in geo_cache.items() if v}, ensure_ascii=False)
+
+    # Build profiles JSON for embedding in HTML
+    profiles_json = json.dumps(profiles, ensure_ascii=False)
 
     def iso_to_at(iso_date):
         """Convert YYYY-MM-DD to DD.MM.YYYY."""
@@ -451,6 +736,19 @@ def generate_html(postings, geo_cache=None, new_keys=None):
         bew = p["bewerber"]
         bew_class = "bew-zero" if bew == 0 else ("bew-low" if bew <= 2 else "")
         hours_display = f'{p.get("hours_min", 0)}-{hours}' if p.get("hours_min", 0) and p.get("hours_min", 0) != hours else str(hours)
+        # Profile badge
+        prof = profiles.get(skz, {})
+        community = prof.get("community", {})
+        overall_avg = community.get("overall_avg")
+        has_profile = bool(prof.get("stats") or prof.get("facilities") or prof.get("community"))
+        if overall_avg:
+            rating_color = "rating-good" if overall_avg >= 4.0 else ("rating-ok" if overall_avg >= 3.0 else "rating-low")
+            profile_badge = f' <span class="badge profile-badge {rating_color}" onclick="event.stopPropagation();showProfile(\'{html_esc(skz)}\')">{overall_avg} ★ ({community.get("review_count", 0)})</span>'
+        elif has_profile:
+            profile_badge = f' <span class="badge profile-badge profile-info" onclick="event.stopPropagation();showProfile(\'{html_esc(skz)}\')">ℹ</span>'
+        else:
+            profile_badge = ""
+
         rows.append(
             f'<tr data-schultyp="{html_esc(p["schultyp"])}" '
             f'data-region="{html_esc(p["bildungsregion"])}" '
@@ -461,7 +759,7 @@ def generate_html(postings, geo_cache=None, new_keys=None):
             f'data-hbucket="{hbucket}" '
             f'data-bew="{bew}" '
             f'data-skz="{html_esc(skz)}"{lat_attr}{lng_attr}>'
-            f'<td><span class="school-name">{html_esc(p["school_name"])}</span>{cb_badge}{new_badge}</td>'
+            f'<td><span class="school-name school-link" onclick="showProfile(\'{html_esc(skz)}\')">{html_esc(p["school_name"])}</span>{cb_badge}{new_badge}{profile_badge}</td>'
             f'<td><span class="badge st-{p["schultyp"][:2].lower()}">{html_esc(p["schultyp"])}</span></td>'
             f'<td>{html_esc(p["bezirk"])}</td>'
             f'<td>{html_esc(p["bildungsregion"])}</td>'
@@ -574,10 +872,79 @@ tr.hidden {{ display: none; }}
 @keyframes pulse {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.5; }} }}
 .bew-zero {{ color: var(--green); }}
 .bew-low {{ color: var(--amber); }}
+.school-link {{ cursor: pointer; color: var(--primary); }}
+.school-link:hover {{ text-decoration: underline; }}
+.profile-badge {{ cursor: pointer; }}
+.rating-good {{ background: var(--green-light); color: var(--green); }}
+.rating-ok {{ background: var(--amber-light); color: var(--amber); }}
+.rating-low {{ background: var(--rose-light); color: var(--rose); }}
+.profile-info {{ background: var(--primary-light); color: var(--primary); font-size: 0.65rem; }}
+/* Modal */
+.modal-overlay {{
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center;
+  backdrop-filter: blur(2px);
+}}
+.modal-overlay.active {{ display: flex; }}
+.modal {{
+  background: #fff; border-radius: 12px; max-width: 560px; width: 90%;
+  max-height: 85vh; overflow-y: auto; position: relative;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}}
+.modal-header {{
+  background: linear-gradient(135deg, var(--primary) 0%, #1e40af 100%);
+  color: #fff; padding: 1.25rem 1.5rem; border-radius: 12px 12px 0 0;
+}}
+.modal-header h2 {{ font-size: 1.1rem; font-weight: 700; margin-bottom: 0.3rem; }}
+.modal-header .modal-meta {{ display: flex; gap: 0.5rem; flex-wrap: wrap; }}
+.modal-header .modal-meta .badge {{ background: rgba(255,255,255,0.2); color: #fff; }}
+.modal-close {{
+  position: absolute; top: 0.75rem; right: 0.75rem; background: rgba(255,255,255,0.2);
+  border: none; color: #fff; font-size: 1.2rem; width: 2rem; height: 2rem; border-radius: 50%;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}}
+.modal-close:hover {{ background: rgba(255,255,255,0.3); }}
+.modal-body {{ padding: 1.25rem 1.5rem; }}
+.modal-section {{ margin-bottom: 1.25rem; }}
+.modal-section:last-child {{ margin-bottom: 0; }}
+.modal-section-title {{
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--gray-500); margin-bottom: 0.5rem;
+}}
+.modal-stats {{ display: flex; gap: 1rem; }}
+.modal-stat {{
+  flex: 1; text-align: center; padding: 0.75rem; background: var(--gray-50);
+  border-radius: 8px; border: 1px solid var(--gray-200);
+}}
+.modal-stat .num {{ font-size: 1.3rem; font-weight: 700; color: var(--gray-900); }}
+.modal-stat .label {{ font-size: 0.7rem; color: var(--gray-500); margin-top: 0.1rem; }}
+.dim-row {{ display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.4rem; }}
+.dim-label {{ font-size: 0.8rem; font-weight: 600; width: 90px; color: var(--gray-700); }}
+.dim-bar-wrap {{ flex: 1; height: 8px; background: var(--gray-200); border-radius: 4px; overflow: hidden; }}
+.dim-bar {{ height: 100%; border-radius: 4px; transition: width 0.3s; }}
+.dim-score {{ font-size: 0.8rem; font-weight: 600; width: 24px; text-align: right; }}
+.dim-comment {{ font-size: 0.75rem; color: var(--gray-500); margin: 0 0 0.3rem 90px; padding-left: 0.75rem; font-style: italic; }}
+.facility-chips {{ display: flex; flex-wrap: wrap; gap: 0.4rem; }}
+.facility-chip {{
+  padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.75rem; font-weight: 500;
+  background: var(--primary-light); color: var(--primary); border: 1px solid transparent;
+}}
+.modal-links {{ display: flex; flex-wrap: wrap; gap: 0.5rem; }}
+.modal-link {{
+  padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500;
+  text-decoration: none; border: 1px solid var(--gray-300); color: var(--gray-700);
+}}
+.modal-link:hover {{ background: var(--gray-100); }}
+.modal-link.primary {{ background: var(--primary); color: #fff; border-color: var(--primary); }}
+.modal-link.primary:hover {{ background: #1e40af; }}
+.modal-empty {{ font-size: 0.85rem; color: var(--gray-500); font-style: italic; }}
 @media (max-width: 768px) {{
   .header, .controls, .table-wrap, .count {{ padding-left: 1rem; padding-right: 1rem; }}
   .filter-label {{ min-width: auto; width: 100%; }}
   .header .stats {{ flex-wrap: wrap; gap: 0.75rem; }}
+  .modal {{ width: 95%; max-height: 90vh; }}
+  .dim-label {{ width: 70px; font-size: 0.75rem; }}
+  .dim-comment {{ margin-left: 70px; }}
 }}
 </style>
 </head>
@@ -651,6 +1018,7 @@ tr.hidden {{ display: none; }}
 </div>
 <script>
 const GEO = {geo_json};
+const PROFILES = {profiles_json};
 const filters = {{ schultyp: new Set(), region: new Set(), bezirk: new Set(), hbucket: new Set(), cb: new Set(), "new": new Set(), nobew: new Set() }};
 
 function toggleChip(el) {{
@@ -822,7 +1190,127 @@ async function calcCommute() {{
   }}
   btn.disabled = false;
 }}
+function showProfile(skz) {{
+  const p = PROFILES[skz];
+  if (!p) return;
+
+  const overlay = document.getElementById("profileOverlay");
+  const content = document.getElementById("profileContent");
+
+  // Find school info from the table row
+  const row = document.querySelector(`tr[data-skz="${{skz}}"]`);
+  const schoolName = row ? row.querySelector(".school-name").textContent : skz;
+  const schultyp = row ? row.dataset.schultyp : "";
+  const bezirk = row ? row.dataset.bezirk : "";
+  const isCB = row ? row.dataset.cb === "1" : false;
+
+  let html = "";
+
+  // Header
+  html += `<div class="modal-header">`;
+  html += `<h2>${{schoolName}}</h2>`;
+  html += `<div class="modal-meta">`;
+  if (schultyp) html += `<span class="badge">${{schultyp}}</span>`;
+  if (bezirk) html += `<span class="badge">${{bezirk}}</span>`;
+  if (isCB) html += `<span class="badge" style="background:rgba(16,185,129,0.3)">Chancenbonus</span>`;
+  html += `</div></div>`;
+
+  html += `<div class="modal-body">`;
+
+  // Community reviews
+  const c = p.community;
+  if (c && c.overall_avg) {{
+    html += `<div class="modal-section">`;
+    html += `<div class="modal-section-title">Lehrerbewertungen</div>`;
+    const stars = "★".repeat(Math.round(c.overall_avg)) + "☆".repeat(5 - Math.round(c.overall_avg));
+    html += `<div style="font-size:1.1rem;margin-bottom:0.6rem">${{stars}} <strong>${{c.overall_avg}}</strong> <span style="color:var(--gray-500);font-size:0.8rem">(${{c.review_count}} Bewertung${{c.review_count !== 1 ? "en" : ""}})</span></div>`;
+
+    const dims = [
+      ["fuehrung", "Führung"],
+      ["team", "Team"],
+      ["ausstattung", "Ausstattung"],
+      ["atmosphaere", "Atmosphäre"],
+    ];
+    dims.forEach(([key, label]) => {{
+      const d = c[key];
+      if (!d || !d.avg) return;
+      const pct = (d.avg / 5) * 100;
+      const color = d.avg >= 4 ? "var(--green)" : d.avg >= 3 ? "var(--amber)" : "var(--rose)";
+      html += `<div class="dim-row">`;
+      html += `<span class="dim-label">${{label}}</span>`;
+      html += `<div class="dim-bar-wrap"><div class="dim-bar" style="width:${{pct}}%;background:${{color}}"></div></div>`;
+      html += `<span class="dim-score" style="color:${{color}}">${{d.avg}}</span>`;
+      html += `</div>`;
+      if (d.comments && d.comments.length) {{
+        d.comments.forEach(txt => {{
+          if (txt) html += `<div class="dim-comment">"${{txt.substring(0, 120)}}${{txt.length > 120 ? "…" : ""}}"</div>`;
+        }});
+      }}
+    }});
+    html += `</div>`;
+  }}
+
+  // School stats
+  const st = p.stats;
+  if (st) {{
+    html += `<div class="modal-section">`;
+    html += `<div class="modal-section-title">Schulgröße (2024/25)</div>`;
+    html += `<div class="modal-stats">`;
+    if (st.students) html += `<div class="modal-stat"><div class="num">${{st.students}}</div><div class="label">Schüler·innen</div></div>`;
+    if (st.classes) html += `<div class="modal-stat"><div class="num">${{st.classes}}</div><div class="label">Klassen</div></div>`;
+    html += `</div>`;
+    if (st.address) html += `<div style="font-size:0.75rem;color:var(--gray-500);margin-top:0.4rem">${{st.address}}</div>`;
+    html += `</div>`;
+  }}
+
+  // Facilities
+  const f = p.facilities;
+  if (f && f.keywords && f.keywords.length) {{
+    html += `<div class="modal-section">`;
+    html += `<div class="modal-section-title">Ausstattung</div>`;
+    html += `<div class="facility-chips">`;
+    f.keywords.forEach(kw => {{
+      html += `<span class="facility-chip">${{kw}}</span>`;
+    }});
+    html += `</div></div>`;
+  }}
+
+  // No data at all?
+  if (!c?.overall_avg && !st && (!f || !f.keywords?.length)) {{
+    html += `<div class="modal-section"><p class="modal-empty">Noch keine Profildaten vorhanden. Hilf mit und bewerte diese Schule!</p></div>`;
+  }}
+
+  // Links
+  html += `<div class="modal-section">`;
+  html += `<div class="modal-section-title">Links</div>`;
+  html += `<div class="modal-links">`;
+  const mapsQ = encodeURIComponent(schoolName + ", Oberösterreich, Austria");
+  html += `<a class="modal-link" href="https://www.google.com/maps/search/${{mapsQ}}" target="_blank" rel="noopener">🗺 Google Maps</a>`;
+  if (p.website_url) html += `<a class="modal-link" href="${{p.website_url}}" target="_blank" rel="noopener">🌐 Website</a>`;
+  html += `<a class="modal-link" href="https://bewerbung.bildung.gv.at/app/portal/#/app/bewo" target="_blank" rel="noopener">📝 Bewerben</a>`;
+  const reviewUrl = "https://github.com/siamdakiang/aps-stellen/issues/new?template=school_review.yml&title=" + encodeURIComponent("Schulbewertung: " + schoolName + " (" + skz + ")");
+  html += `<a class="modal-link primary" href="${{reviewUrl}}" target="_blank" rel="noopener">⭐ Schule bewerten</a>`;
+  html += `</div></div>`;
+
+  html += `</div>`; // modal-body
+  content.innerHTML = html;
+  overlay.classList.add("active");
+  document.body.style.overflow = "hidden";
+}}
+
+function closeProfile(e) {{
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById("profileOverlay").classList.remove("active");
+  document.body.style.overflow = "";
+}}
+document.addEventListener("keydown", e => {{ if (e.key === "Escape") closeProfile(); }});
 </script>
+<div id="profileOverlay" class="modal-overlay" onclick="closeProfile(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeProfile()">&times;</button>
+    <div id="profileContent"></div>
+  </div>
+</div>
 <div class="footer">
   <div>Daten: <a href="https://info.bildung-ooe.gv.at/stellenAPS.html" target="_blank" rel="noopener">Bildungsdirektion O\u00d6</a> &mdash; t\u00e4glich automatisch aktualisiert</div>
   <div style="margin-top:0.3rem">
@@ -861,6 +1349,10 @@ def main():
     print("Geocoding schools...")
     geo_cache = geocode_schools(all_postings)
 
+    print("Enriching school profiles...")
+    profiles = enrich_school_profiles(all_postings, geo_cache)
+    profiles = import_community_reviews(profiles)
+
     previous = load_previous()
     path = save_snapshot(all_postings)
     print(f"Snapshot saved to {path}")
@@ -872,7 +1364,7 @@ def main():
         added, removed = [], []
         new_keys = set()
 
-    generate_html(all_postings, geo_cache, new_keys)
+    generate_html(all_postings, geo_cache, new_keys, profiles)
 
     if previous is None:
         print("First run — no previous data to compare.")

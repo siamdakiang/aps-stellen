@@ -1,0 +1,114 @@
+name: "Schulbewertung"
+description: "Bewerte eine Schule aus Sicht einer Lehrperson"
+title: "Schulbewertung: "
+labels: ["school-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Schulbewertung
+        Hilf anderen Lehrpersonen bei der Stellenwahl! Deine Bewertung wird vor der Veröffentlichung geprüft — bitte nenne keine Namen von Personen.
+
+  - type: input
+    id: skz
+    attributes:
+      label: Schulkennzahl
+      description: "Die 6-stellige Schulkennzahl (z.B. 401271)"
+      placeholder: "401271"
+    validations:
+      required: true
+
+  - type: input
+    id: school_name
+    attributes:
+      label: Schulname
+      description: "Name der Schule"
+      placeholder: "VS 16 Linz, Sonnensteinschule"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: fuehrung
+    attributes:
+      label: "Führung"
+      description: "Direktion: Struktur, Kommunikation, Empathie, klare Linie"
+      options:
+        - "5 — Sehr gut"
+        - "4 — Gut"
+        - "3 — Okay"
+        - "2 — Schlecht"
+        - "1 — Sehr schlecht"
+    validations:
+      required: true
+
+  - type: textarea
+    id: fuehrung_text
+    attributes:
+      label: "Kommentar zur Führung (optional)"
+      description: "Bitte keine Namen nennen"
+      placeholder: "z.B. Direktion ist sehr engagiert und hat immer ein offenes Ohr..."
+
+  - type: dropdown
+    id: team
+    attributes:
+      label: "Team"
+      description: "Zusammenarbeit im Kollegium, gegenseitige Unterstützung"
+      options:
+        - "5 — Sehr gut"
+        - "4 — Gut"
+        - "3 — Okay"
+        - "2 — Schlecht"
+        - "1 — Sehr schlecht"
+    validations:
+      required: true
+
+  - type: textarea
+    id: team_text
+    attributes:
+      label: "Kommentar zum Team (optional)"
+      description: "Bitte keine Namen nennen"
+
+  - type: dropdown
+    id: ausstattung
+    attributes:
+      label: "Ausstattung"
+      description: "Gebäude, Technik, Räumlichkeiten, Materialien"
+      options:
+        - "5 — Sehr gut"
+        - "4 — Gut"
+        - "3 — Okay"
+        - "2 — Schlecht"
+        - "1 — Sehr schlecht"
+    validations:
+      required: true
+
+  - type: textarea
+    id: ausstattung_text
+    attributes:
+      label: "Kommentar zur Ausstattung (optional)"
+      placeholder: "z.B. Smartboards in allen Klassen, schöner Schulgarten..."
+
+  - type: dropdown
+    id: atmosphaere
+    attributes:
+      label: "Atmosphäre"
+      description: "Schulklima, Wohlbefinden, Umgang miteinander"
+      options:
+        - "5 — Sehr gut"
+        - "4 — Gut"
+        - "3 — Okay"
+        - "2 — Schlecht"
+        - "1 — Sehr schlecht"
+    validations:
+      required: true
+
+  - type: textarea
+    id: atmosphaere_text
+    attributes:
+      label: "Kommentar zur Atmosphäre (optional)"
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: "Sonstiges (optional)"
+      description: "Gibt es etwas, das andere Lehrpersonen wissen sollten?"
