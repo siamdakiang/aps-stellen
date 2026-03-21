@@ -1090,8 +1090,8 @@ tr.hidden {{ display: none; }}
 .school-link {{ cursor: pointer; color: var(--primary); }}
 .school-link:hover {{ text-decoration: underline; }}
 .school-rating {{
-  font-size: 0.75rem; margin-top: 0.2rem; cursor: pointer;
-  display: inline-block; line-height: 1.3;
+  font-size: 0.75rem; margin-top: 0.25rem; cursor: pointer;
+  display: block; line-height: 1.3;
 }}
 .school-rating:hover {{ text-decoration: underline; }}
 .school-rating.rating-good {{ color: var(--green); }}
@@ -1236,7 +1236,7 @@ tr.hidden {{ display: none; }}
   td:nth-child(1) {{ font-size: 0.95rem; font-weight: 600; margin-bottom: 0.35rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--gray-100); }}
   td:nth-child(2) {{ display: inline-block; margin-bottom: 0.25rem; }}
   td:nth-child(3)::before {{ content: "Bezirk: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
-  td:nth-child(4)::before {{ content: "Region: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
+  td:nth-child(4)::before {{ content: "Bildungsregion: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
   td:nth-child(5) {{ margin: 0.25rem 0; }}
   td:nth-child(5)::before {{ content: "Fach: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
   .fach {{ max-width: none !important; }}
@@ -1328,7 +1328,7 @@ tr.hidden {{ display: none; }}
     </div>
     <div class="weitere-filter-section" id="weitereFilterSection">
       <div class="filter-group">
-        <span class="filter-label">Region</span>
+        <span class="filter-label">Bildungsregion</span>
         {chips(regionen, "region")}
       </div>
       <div class="filter-group">
@@ -1484,7 +1484,7 @@ tr.hidden {{ display: none; }}
 <th class="sortable" onclick="sortTable(0)">Schule</th>
 <th class="sortable" onclick="sortTable(1)">Schultyp</th>
 <th class="sortable" onclick="sortTable(2)">Bezirk</th>
-<th class="sortable" onclick="sortTable(3)">Region</th>
+<th class="sortable" onclick="sortTable(3)">Bildungsregion</th>
 <th class="sortable" onclick="sortTable(4)">Fach / Details</th>
 <th class="sortable" onclick="sortTable(5)">Stunden</th>
 <th class="sortable" onclick="sortTable(6)">Frist</th>
