@@ -522,6 +522,52 @@ def save_snapshot(postings):
     return path
 
 
+def compute_first_seen():
+    """Scan all historical snapshots to find the earliest appearance of each posting."""
+    first_seen = {}
+    for f in sorted(DATA_DIR.glob("*.json")):
+        with open(f) as fh:
+            snapshot = json.load(fh)
+        snapshot_date = f.stem  # "YYYY-MM-DD"
+        for p in snapshot:
+            key = posting_key(p)
+            if key not in first_seen:
+                first_seen[key] = snapshot_date
+    return first_seen
+
+
+def compute_daily_counts():
+    """Count total postings in each historical snapshot."""
+    counts = []
+    for f in sorted(DATA_DIR.glob("*.json")):
+        with open(f) as fh:
+            data = json.load(fh)
+        counts.append({"date": f.stem, "count": len(data)})
+    return counts
+
+
+def sparkline_svg(counts, width=120, height=30):
+    """Generate an inline SVG sparkline from daily posting counts."""
+    if len(counts) < 2:
+        return ""
+    values = [c["count"] for c in counts]
+    min_v, max_v = min(values), max(values)
+    range_v = max_v - min_v or 1
+    points = []
+    for i, v in enumerate(values):
+        x = (i / (len(values) - 1)) * width
+        y = height - ((v - min_v) / range_v) * (height - 4) - 2
+        points.append(f"{x:.1f},{y:.1f}")
+    polyline = " ".join(points)
+    last_x, last_y = points[-1].split(",")
+    return (
+        f'<svg width="{width}" height="{height}" style="vertical-align:middle">'
+        f'<polyline points="{polyline}" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linejoin="round"/>'
+        f'<circle cx="{last_x}" cy="{last_y}" r="3" fill="#fff"/>'
+        f'</svg>'
+    )
+
+
 def diff_postings(previous, current):
     prev_keys = {posting_key(p): p for p in previous}
     curr_keys = {posting_key(p): p for p in current}
@@ -644,9 +690,10 @@ def format_html_email(added, removed):
     return "\n".join(parts)
 
 
-def send_email(config, added, removed):
+def _get_smtp_config(config):
+    """Load SMTP configuration, return (recipients, smtp_settings) or (None, None) if not configured."""
     if not config.get("email", {}).get("enabled"):
-        return
+        return None, None
 
     smtp_host = os.environ.get("SMTP_HOST", "")
     smtp_port = int(os.environ.get("SMTP_PORT", "587"))
@@ -656,33 +703,86 @@ def send_email(config, added, removed):
     email_to = os.environ.get("EMAIL_TO", "")  # comma-separated
 
     if not all([smtp_host, smtp_user, smtp_password, email_from, email_to]):
-        print("Warning: Email enabled but env vars not fully set, skipping.")
-        return
+        missing = [name for name, val in [
+            ("SMTP_HOST", smtp_host), ("SMTP_USER", smtp_user),
+            ("SMTP_PASSWORD", smtp_password), ("EMAIL_FROM", email_from), ("EMAIL_TO", email_to)
+        ] if not val]
+        print(f"Warning: Email enabled but missing env vars: {', '.join(missing)} — skipping.")
+        return None, None
 
     recipients = [addr.strip() for addr in email_to.split(",")]
+    return recipients, {
+        "host": smtp_host, "port": smtp_port, "user": smtp_user,
+        "password": smtp_password, "from": email_from,
+    }
+
+
+def _send_smtp(smtp, recipients, msg):
+    """Send an email via SMTP."""
+    with smtplib.SMTP(smtp["host"], smtp["port"]) as server:
+        server.starttls()
+        server.login(smtp["user"], smtp["password"])
+        server.send_message(msg)
+    print(f"Email sent to {', '.join(recipients)}")
+
+
+def send_email(config, added, removed):
+    recipients, smtp = _get_smtp_config(config)
+    if not recipients:
+        return
+
+    print(f"Email: {len(added)} neue, {len(removed)} entfernte Stellen")
 
     body = format_html_email(added, removed)
 
     msg = MIMEText(body, "html", "utf-8")
     msg["Subject"] = f"APS Stellen: {len(added)} neu, {len(removed)} entfernt — {datetime.now().strftime('%d.%m.%Y')}"
-    msg["From"] = email_from
+    msg["From"] = smtp["from"]
     msg["To"] = ", ".join(recipients)
 
-    with smtplib.SMTP(smtp_host, smtp_port) as server:
-        server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
-
-    print(f"Email sent to {', '.join(recipients)}")
+    _send_smtp(smtp, recipients, msg)
 
 
-def generate_html(postings, geo_cache=None, new_keys=None, profiles=None):
+def send_daily_summary(config, postings):
+    """Send a brief status email even when there are no changes."""
+    recipients, smtp = _get_smtp_config(config)
+    if not recipients:
+        return
+
+    date_str = datetime.now().strftime("%d.%m.%Y")
+    zero_bew = sum(1 for p in postings if p["bewerber"] == 0)
+    body = (
+        f'<!DOCTYPE html><html><head><meta charset="utf-8"></head>'
+        f'<body style="font-family:-apple-system,sans-serif;background:#f3f4f6;padding:0;margin:0;">'
+        f'<div style="background:linear-gradient(135deg,#1a56db,#1e40af);color:#fff;padding:24px 32px;">'
+        f'<h1 style="margin:0;font-size:20px;">APS Stellen Status — {date_str}</h1>'
+        f'<p style="margin:4px 0 0;opacity:0.85;font-size:14px;">Keine Ver\u00e4nderungen</p>'
+        f'</div>'
+        f'<div style="padding:24px 32px;font-size:15px;color:#374151;line-height:1.6;">'
+        f'<p>Heute gab es keine Ver\u00e4nderungen bei den APS-Stellen.</p>'
+        f'<p><strong>{len(postings)}</strong> offene Stellen, davon <strong>{zero_bew}</strong> ohne Bewerber.</p>'
+        f'<p style="margin-top:16px;"><a href="https://siamdakiang.github.io/aps-stellen/" '
+        f'style="color:#1a56db;text-decoration:none;font-weight:600;">Dashboard ansehen &rarr;</a></p>'
+        f'</div></body></html>'
+    )
+
+    msg = MIMEText(body, "html", "utf-8")
+    msg["Subject"] = f"APS Stellen: Keine \u00c4nderungen — {date_str}"
+    msg["From"] = smtp["from"]
+    msg["To"] = ", ".join(recipients)
+
+    _send_smtp(smtp, recipients, msg)
+
+
+def generate_html(postings, geo_cache=None, new_keys=None, profiles=None, first_seen=None, sparkline_html=""):
     docs_dir = SCRIPT_DIR / "docs"
     docs_dir.mkdir(exist_ok=True)
 
     geo_cache = geo_cache or {}
     new_keys = new_keys or set()
     profiles = profiles or {}
+    first_seen = first_seen or {}
+    today = datetime.now().strftime("%Y-%m-%d")
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
     cb_count = sum(1 for p in postings if p["chancenbonus"])
     new_count = sum(1 for p in postings if posting_key(p) in new_keys)
@@ -736,6 +836,20 @@ def generate_html(postings, geo_cache=None, new_keys=None, profiles=None):
         bew = p["bewerber"]
         bew_class = "bew-zero" if bew == 0 else ("bew-low" if bew <= 2 else "")
         hours_display = f'{p.get("hours_min", 0)}-{hours}' if p.get("hours_min", 0) and p.get("hours_min", 0) != hours else str(hours)
+        # Tage online
+        fs_date = first_seen.get(posting_key(p), today)
+        try:
+            days_online = (datetime.strptime(today, "%Y-%m-%d") - datetime.strptime(fs_date, "%Y-%m-%d")).days
+        except ValueError:
+            days_online = 0
+        if days_online <= 1:
+            tage_class = "tage-fresh"
+        elif days_online <= 7:
+            tage_class = "tage-normal"
+        elif days_online <= 14:
+            tage_class = "tage-stale"
+        else:
+            tage_class = "tage-old"
         # Profile badge
         prof = profiles.get(skz, {})
         community = prof.get("community", {})
@@ -767,6 +881,7 @@ def generate_html(postings, geo_cache=None, new_keys=None, profiles=None):
             f'<td class="num">{hours_display}h</td>'
             f'<td data-date="{iso_date}">{html_esc(at_date)}</td>'
             f'<td class="num {bew_class}">{bew}</td>'
+            f'<td class="tage {tage_class}" data-days="{days_online}">{days_online}d</td>'
             f'<td class="commute-cell" data-minutes="999999">-</td>'
             f'<td class="link-cell">'
             f'<a href="{maps_url}" target="_blank" rel="noopener" title="Route in Google Maps">Route</a>'
@@ -872,6 +987,11 @@ tr.hidden {{ display: none; }}
 @keyframes pulse {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.5; }} }}
 .bew-zero {{ color: var(--green); }}
 .bew-low {{ color: var(--amber); }}
+.tage {{ text-align: center; white-space: nowrap; font-size: 0.8rem; }}
+.tage-fresh {{ color: var(--green); font-weight: 600; }}
+.tage-normal {{ color: var(--gray-700); }}
+.tage-stale {{ color: var(--amber); font-weight: 600; }}
+.tage-old {{ color: var(--rose); font-weight: 600; }}
 .school-link {{ cursor: pointer; color: var(--primary); }}
 .school-link:hover {{ text-decoration: underline; }}
 .profile-badge {{ cursor: pointer; }}
@@ -879,6 +999,49 @@ tr.hidden {{ display: none; }}
 .rating-ok {{ background: var(--amber-light); color: var(--amber); }}
 .rating-low {{ background: var(--rose-light); color: var(--rose); }}
 .profile-info {{ background: var(--primary-light); color: var(--primary); font-size: 0.65rem; }}
+/* Info bar */
+.info-bar {{
+  background: var(--primary-light); border-bottom: 1px solid #bfdbfe;
+  padding: 0.75rem 2rem; font-size: 0.85rem; color: var(--gray-700);
+  display: flex; align-items: center; gap: 1rem;
+}}
+.info-bar a {{ color: var(--primary); }}
+.info-content {{ flex: 1; line-height: 1.5; }}
+.info-close {{
+  background: none; border: none; font-size: 1.2rem;
+  cursor: pointer; color: var(--gray-500); padding: 0.25rem;
+}}
+.info-close:hover {{ color: var(--gray-700); }}
+/* Live dot */
+.live-dot {{
+  display: inline-block; width: 8px; height: 8px;
+  background: #34d399; border-radius: 50%; margin-right: 0.3rem;
+  animation: livePulse 2s ease-in-out infinite;
+}}
+@keyframes livePulse {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.4; }} }}
+/* Links section */
+.links-section {{ border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }}
+.links-toggle {{
+  display: flex; align-items: center; gap: 0.5rem; width: 100%;
+  padding: 0.75rem 2rem; background: none; border: none;
+  font-size: 0.85rem; font-weight: 600; color: var(--primary); cursor: pointer; text-align: left;
+}}
+.links-toggle:hover {{ background: var(--primary-light); }}
+.links-arrow {{ font-size: 0.7rem; transition: transform 0.2s; }}
+.links-arrow.open {{ transform: rotate(180deg); }}
+.links-content {{ padding: 0 2rem 1rem; }}
+.links-grid {{
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.75rem;
+}}
+.link-card {{
+  background: #fff; border: 1px solid var(--gray-200); border-radius: 8px; padding: 0.75rem 1rem;
+}}
+.link-card-title {{ font-weight: 600; font-size: 0.85rem; color: var(--gray-900); margin-bottom: 0.2rem; }}
+.link-card-desc {{ font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.4rem; }}
+.link-card-url {{ font-size: 0.8rem; color: var(--primary); text-decoration: none; }}
+.link-card-url:hover {{ text-decoration: underline; }}
+/* Mobile sort */
+.mobile-sort {{ display: none; }}
 /* Modal */
 .modal-overlay {{
   display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -940,8 +1103,54 @@ tr.hidden {{ display: none; }}
 .modal-empty {{ font-size: 0.85rem; color: var(--gray-500); font-style: italic; }}
 @media (max-width: 768px) {{
   .header, .controls, .table-wrap, .count {{ padding-left: 1rem; padding-right: 1rem; }}
+  .header h1 {{ font-size: 1.2rem; }}
+  .header .stats {{ flex-wrap: wrap; gap: 0.5rem; }}
+  .stat {{ flex: 1; min-width: 70px; padding: 0.4rem 0.6rem; }}
+  .stat .num {{ font-size: 1rem; }}
+  .stat .label {{ font-size: 0.65rem; }}
   .filter-label {{ min-width: auto; width: 100%; }}
-  .header .stats {{ flex-wrap: wrap; gap: 0.75rem; }}
+  .search-row, .commute-row {{ flex-direction: column; gap: 0.5rem; }}
+  .search-row input, .commute-row input {{ min-width: 0 !important; max-width: none !important; flex: 1 1 auto; }}
+  .commute-btn, .reset-btn {{ width: 100%; }}
+  .info-bar {{ padding: 0.75rem 1rem; }}
+  .links-toggle {{ padding: 0.75rem 1rem; }}
+  .links-content {{ padding: 0 1rem 1rem; }}
+  .links-grid {{ grid-template-columns: 1fr; }}
+  .mobile-sort {{ display: block; padding: 0.5rem 1rem; }}
+  .mobile-sort select {{
+    width: 100%; padding: 0.5rem; border: 1px solid var(--gray-300);
+    border-radius: 6px; font-size: 0.9rem; background: #fff;
+  }}
+  /* Card layout */
+  .table-wrap {{ overflow-x: visible; padding: 0 1rem 1rem; }}
+  table {{ box-shadow: none; background: transparent; }}
+  thead {{ display: none; }}
+  tbody {{ display: flex; flex-direction: column; gap: 0.75rem; }}
+  tr {{
+    display: block; background: #fff; border-radius: 10px; padding: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid var(--gray-200);
+  }}
+  tr.hidden {{ display: none; }}
+  tr:hover td {{ background: transparent; }}
+  td {{ display: block; padding: 0.15rem 0; border-bottom: none; font-size: 0.85rem; }}
+  td:nth-child(1) {{ font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--gray-100); }}
+  td:nth-child(2) {{ display: inline-block; margin-bottom: 0.3rem; }}
+  td:nth-child(3)::before {{ content: "Bezirk: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
+  td:nth-child(4)::before {{ content: "Region: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
+  td:nth-child(5) {{ margin: 0.3rem 0; }}
+  td:nth-child(5)::before {{ content: "Fach: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
+  .fach {{ max-width: none !important; }}
+  td:nth-child(6), td:nth-child(7), td:nth-child(8), td:nth-child(9) {{
+    display: inline-block; width: 48%; text-align: left; padding: 0.25rem 0;
+  }}
+  td:nth-child(6)::before {{ content: "Stunden: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
+  td:nth-child(7)::before {{ content: "Frist: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
+  td:nth-child(8)::before {{ content: "Bewerber: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
+  td:nth-child(9)::before {{ content: "Online: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
+  td:nth-child(10) {{ margin-top: 0.3rem; }}
+  td:nth-child(10)::before {{ content: "Anfahrt: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
+  td:nth-child(11) {{ margin-top: 0.3rem; padding-top: 0.3rem; border-top: 1px solid var(--gray-100); }}
+  .num {{ text-align: left; }}
   .modal {{ width: 95%; max-height: 90vh; }}
   .dim-label {{ width: 70px; font-size: 0.75rem; }}
   .dim-comment {{ margin-left: 70px; }}
@@ -951,14 +1160,25 @@ tr.hidden {{ display: none; }}
 <body>
 <div class="header">
   <h1>Offene APS-Stellen Ober\u00f6sterreich</h1>
-  <div class="meta">Stellenausschreibungen f\u00fcr Landeslehrer im Pflichtschulbereich &mdash; Stand: {now}</div>
+  <div class="meta"><span class="live-dot"></span> Stellenausschreibungen f\u00fcr Landeslehrer im Pflichtschulbereich &mdash; Zuletzt aktualisiert: <strong>{now}</strong></div>
   <div class="stats">
     <div class="stat"><div class="num">{len(postings)}</div><div class="label">Offene Stellen</div></div>
     <div class="stat"><div class="num">{new_count}</div><div class="label">Neu heute</div></div>
     <div class="stat"><div class="num">{zero_applicants}</div><div class="label">Ohne Bewerber</div></div>
     <div class="stat"><div class="num">{cb_count}</div><div class="label">Chancenbonus</div></div>
+    {"<div class='stat'><div class='num'>" + sparkline_html + "</div><div class='label'>Verlauf</div></div>" if sparkline_html else ""}
   </div>
 </div>
+<div class="info-bar" id="infoBar">
+  <div class="info-content">
+    <strong>Was ist das?</strong> Dieses Tool sammelt t\u00e4glich die offenen APS-Stellenausschreibungen
+    der <a href="https://info.bildung-ooe.gv.at/stellenAPS.html" target="_blank" rel="noopener">Bildungsdirektion Ober\u00f6sterreich</a>
+    und stellt sie \u00fcbersichtlich dar. Die Daten werden automatisch jeden Morgen um 08:00 Uhr aktualisiert.
+    Du kannst filtern, sortieren und deine Pendelzeit berechnen.
+  </div>
+  <button class="info-close" onclick="document.getElementById('infoBar').style.display='none';localStorage.setItem('infoHidden','1')">&times;</button>
+</div>
+<script>if(localStorage.getItem('infoHidden')==='1')document.getElementById('infoBar').style.display='none';</script>
 <div class="controls">
   <div class="search-row">
     <input type="text" id="q" placeholder="Suche (Schule, Fach, Ort...)" oninput="applyFilters()">
@@ -996,6 +1216,66 @@ tr.hidden {{ display: none; }}
     <button class="chip" data-group="nobew" data-value="1" onclick="toggleChip(this)">Ohne Bewerber</button>
   </div>
 </div>
+<div class="links-section">
+  <button class="links-toggle" onclick="toggleLinks()" id="linksToggle">
+    N\u00fctzliche Links f\u00fcr Lehrpersonen <span class="links-arrow" id="linksArrow">&#x25BC;</span>
+  </button>
+  <div class="links-content" id="linksContent" style="display:none">
+    <div class="links-grid">
+      <div class="link-card">
+        <div class="link-card-title">Bewerbungsportal</div>
+        <div class="link-card-desc">Online-Bewerbung f\u00fcr APS-Stellen</div>
+        <a href="https://bewerbung.bildung.gv.at/app/portal/#/app/bewo" target="_blank" rel="noopener" class="link-card-url">bewerbung.bildung.gv.at &rarr;</a>
+      </div>
+      <div class="link-card">
+        <div class="link-card-title">Bildungsdirektion O\u00d6</div>
+        <div class="link-card-desc">Offizielle Seite der Bildungsdirektion Ober\u00f6sterreich</div>
+        <a href="https://www.bildung-ooe.gv.at/" target="_blank" rel="noopener" class="link-card-url">bildung-ooe.gv.at &rarr;</a>
+      </div>
+      <div class="link-card">
+        <div class="link-card-title">Stellenausschreibungen (Quelle)</div>
+        <div class="link-card-desc">Originale Stellenausschreibungen der BD O\u00d6</div>
+        <a href="https://info.bildung-ooe.gv.at/stellenAPS.html" target="_blank" rel="noopener" class="link-card-url">info.bildung-ooe.gv.at &rarr;</a>
+      </div>
+      <div class="link-card">
+        <div class="link-card-title">Landeslehrer-Dienstrechtsgesetz</div>
+        <div class="link-card-desc">LDG 1984 &mdash; Rechtsgrundlage f\u00fcr Pflichtschullehrpersonen</div>
+        <a href="https://www.ris.bka.gv.at/GeltendeFassung.wxe?Abfrage=Bundesnormen&amp;Gesetzesnummer=10008549" target="_blank" rel="noopener" class="link-card-url">ris.bka.gv.at &rarr;</a>
+      </div>
+      <div class="link-card">
+        <div class="link-card-title">Gehaltsrechner</div>
+        <div class="link-card-desc">Brutto-Netto-Berechnung f\u00fcr den \u00f6ffentlichen Dienst</div>
+        <a href="https://oeffentlicherdienst.gv.at/modernes-personalmanagement/gehaltsrechner/" target="_blank" rel="noopener" class="link-card-url">oeffentlicherdienst.gv.at &rarr;</a>
+      </div>
+      <div class="link-card">
+        <div class="link-card-title">Gewerkschaft (G\u00d6D O\u00d6)</div>
+        <div class="link-card-desc">Personalvertretung und Rechtsberatung</div>
+        <a href="https://www.goed-ooe.at/" target="_blank" rel="noopener" class="link-card-url">goed-ooe.at &rarr;</a>
+      </div>
+      <div class="link-card">
+        <div class="link-card-title">PH Ober\u00f6sterreich</div>
+        <div class="link-card-desc">Fortbildung und Weiterqualifizierung</div>
+        <a href="https://ph-ooe.at/" target="_blank" rel="noopener" class="link-card-url">ph-ooe.at &rarr;</a>
+      </div>
+      <div class="link-card">
+        <div class="link-card-title">Versetzungen &amp; Bewerbungsverfahren</div>
+        <div class="link-card-desc">Informationen zum Versetzungsverfahren in O\u00d6</div>
+        <a href="https://www.bildung-ooe.gv.at/Personalangelegenheiten/Pflichtschullehrer-innen.html" target="_blank" rel="noopener" class="link-card-url">bildung-ooe.gv.at &rarr;</a>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="mobile-sort" id="mobileSort">
+  <select onchange="mobileSortChange(this.value)">
+    <option value="">Sortieren nach...</option>
+    <option value="0">Schule</option>
+    <option value="5">Stunden</option>
+    <option value="6">Frist</option>
+    <option value="7">Bewerber</option>
+    <option value="8">Tage online</option>
+    <option value="9">Anfahrt</option>
+  </select>
+</div>
 <div class="count" id="count">{len(postings)} Stellen angezeigt</div>
 <div class="table-wrap">
 <table id="stellen">
@@ -1008,7 +1288,8 @@ tr.hidden {{ display: none; }}
 <th class="sortable" onclick="sortTable(5)">Stunden</th>
 <th class="sortable" onclick="sortTable(6)">Frist</th>
 <th class="sortable" onclick="sortTable(7)">Bewerber</th>
-<th class="sortable" onclick="sortTable(8)">Anfahrt</th>
+<th class="sortable" onclick="sortTable(8)">Tage</th>
+<th class="sortable" onclick="sortTable(9)">Anfahrt</th>
 <th class="no-sort">Links</th>
 </tr></thead>
 <tbody>
@@ -1064,8 +1345,13 @@ function sortTable(col) {{
   sortDir[col] = !sortDir[col];
   rows.sort((a, b) => {{
     if (col === 8) {{
-      const am = parseFloat(a.cells[8].dataset.minutes) || 999999;
-      const bm = parseFloat(b.cells[8].dataset.minutes) || 999999;
+      const ad = parseInt(a.cells[8].dataset.days) || 0;
+      const bd = parseInt(b.cells[8].dataset.days) || 0;
+      return sortDir[col] ? ad - bd : bd - ad;
+    }}
+    if (col === 9) {{
+      const am = parseFloat(a.cells[9].dataset.minutes) || 999999;
+      const bm = parseFloat(b.cells[9].dataset.minutes) || 999999;
       return sortDir[col] ? am - bm : bm - am;
     }}
     if (col === 6) {{
@@ -1149,7 +1435,7 @@ async function calcCommute() {{
     // Update table cells
     rows.forEach(r => {{
       const skz = r.dataset.skz;
-      const cell = r.cells[8];
+      const cell = r.cells[9];
       if (skz && skz in skzToIdx) {{
         const secs = durations[skzToIdx[skz]];
         if (secs !== null) {{
@@ -1172,7 +1458,7 @@ async function calcCommute() {{
     // Update Google Maps links with user address as origin
     const origin = encodeURIComponent(addr);
     rows.forEach(r => {{
-      const links = r.cells[9];
+      const links = r.cells[10];
       const routeLink = links.querySelector("a");
       if (routeLink) {{
         routeLink.href = routeLink.href + "&origin=" + origin;
@@ -1182,14 +1468,26 @@ async function calcCommute() {{
     status.textContent = "Typische Pendelzeit (Auto, 6:30\u20137:30 Uhr)";
 
     // Auto-sort by commute time
-    sortDir[8] = false;
-    sortTable(8);
+    sortDir[9] = false;
+    sortTable(9);
 
   }} catch(e) {{
     status.textContent = "Fehler: " + e.message;
   }}
   btn.disabled = false;
 }}
+function toggleLinks() {{
+  const content = document.getElementById('linksContent');
+  const arrow = document.getElementById('linksArrow');
+  const isOpen = content.style.display !== 'none';
+  content.style.display = isOpen ? 'none' : 'block';
+  arrow.classList.toggle('open', !isOpen);
+}}
+
+function mobileSortChange(col) {{
+  if (col !== "") sortTable(parseInt(col));
+}}
+
 function showProfile(skz) {{
   const p = PROFILES[skz];
   if (!p) return;
@@ -1312,15 +1610,16 @@ document.addEventListener("keydown", e => {{ if (e.key === "Escape") closeProfil
   </div>
 </div>
 <div class="footer">
-  <div>Daten: <a href="https://info.bildung-ooe.gv.at/stellenAPS.html" target="_blank" rel="noopener">Bildungsdirektion O\u00d6</a> &mdash; t\u00e4glich automatisch aktualisiert</div>
-  <div style="margin-top:0.3rem">
-    Von <strong>Simon Ludwig</strong>
+  <div>Daten: <a href="https://info.bildung-ooe.gv.at/stellenAPS.html" target="_blank" rel="noopener">Bildungsdirektion Ober\u00f6sterreich</a> &middot; T\u00e4glich automatisch aktualisiert um 08:00 Uhr</div>
+  <div style="margin-top:0.4rem">
+    Erstellt von <strong>Simon Ludwig</strong>
     <span>&middot;</span>
-    <a href="https://github.com/siamdakiang/aps-stellen" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://github.com/siamdakiang/aps-stellen" target="_blank" rel="noopener">GitHub / Quellcode</a>
     <span>&middot;</span>
+    <a href="https://github.com/siamdakiang/aps-stellen/issues" target="_blank" rel="noopener">Fehler melden</a>
+  </div>
+  <div style="margin-top:0.2rem;font-size:0.65rem;opacity:0.7;">
     Built with <a href="https://claude.ai/claude-code" target="_blank" rel="noopener">Claude Code</a>
-    <span>&middot;</span>
-    ~500k tokens spent
   </div>
 </div>
 </body>
@@ -1364,7 +1663,12 @@ def main():
         added, removed = [], []
         new_keys = set()
 
-    generate_html(all_postings, geo_cache, new_keys, profiles)
+    print("Computing historical data...")
+    first_seen = compute_first_seen()
+    daily_counts = compute_daily_counts()
+    sparkline = sparkline_svg(daily_counts)
+
+    generate_html(all_postings, geo_cache, new_keys, profiles, first_seen, sparkline)
 
     if previous is None:
         print("First run — no previous data to compare.")
@@ -1372,6 +1676,8 @@ def main():
 
     if not added and not removed:
         print("No changes since last snapshot.")
+        if config.get("email", {}).get("daily_summary"):
+            send_daily_summary(config, all_postings)
         return
 
     # Apply filters to added/removed for notification

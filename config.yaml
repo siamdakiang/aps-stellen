@@ -12,3 +12,4 @@ filters:
 #   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM, EMAIL_TO
 email:
   enabled: true
+  daily_summary: false  # true = send status email even when there are no changes
