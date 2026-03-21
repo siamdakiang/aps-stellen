@@ -774,7 +774,7 @@ def send_daily_summary(config, postings):
     _send_smtp(smtp, recipients, msg)
 
 
-def generate_html(postings, geo_cache=None, new_keys=None, profiles=None, first_seen=None, sparkline_html=""):
+def generate_html(postings, geo_cache=None, new_keys=None, profiles=None, first_seen=None):
     docs_dir = SCRIPT_DIR / "docs"
     docs_dir.mkdir(exist_ok=True)
 
@@ -850,18 +850,41 @@ def generate_html(postings, geo_cache=None, new_keys=None, profiles=None, first_
             tage_class = "tage-stale"
         else:
             tage_class = "tage-old"
-        # Profile badge
+        # German "Tage online" label
+        if days_online == 0:
+            tage_label = "heute"
+        elif days_online == 1:
+            tage_label = "1 Tag"
+        else:
+            tage_label = f"{days_online} Tage"
+        # Profile / community rating
         prof = profiles.get(skz, {})
         community = prof.get("community", {})
         overall_avg = community.get("overall_avg")
         has_profile = bool(prof.get("stats") or prof.get("facilities") or prof.get("community"))
         if overall_avg:
             rating_color = "rating-good" if overall_avg >= 4.0 else ("rating-ok" if overall_avg >= 3.0 else "rating-low")
-            profile_badge = f' <span class="badge profile-badge {rating_color}" onclick="event.stopPropagation();showProfile(\'{html_esc(skz)}\')">{overall_avg} ★ ({community.get("review_count", 0)})</span>'
+            rev_count = community.get("review_count", 0)
+            stars_filled = "★" * round(overall_avg)
+            stars_empty = "☆" * (5 - round(overall_avg))
+            rating_html = (
+                f'<div class="school-rating {rating_color}" '
+                f'onclick="event.stopPropagation();showProfile(\'{html_esc(skz)}\')" '
+                f'title="Lehrerbewertung anzeigen">'
+                f'{stars_filled}{stars_empty} {overall_avg} '
+                f'<span class="rating-count">({rev_count} Bew.)</span></div>'
+            )
+            data_rating = str(overall_avg)
         elif has_profile:
-            profile_badge = f' <span class="badge profile-badge profile-info" onclick="event.stopPropagation();showProfile(\'{html_esc(skz)}\')">ℹ</span>'
+            rating_html = (
+                f'<div class="school-rating rating-info" '
+                f'onclick="event.stopPropagation();showProfile(\'{html_esc(skz)}\')" '
+                f'title="Schulprofil anzeigen">Profil ansehen ›</div>'
+            )
+            data_rating = "0"
         else:
-            profile_badge = ""
+            rating_html = ""
+            data_rating = "0"
 
         rows.append(
             f'<tr data-schultyp="{html_esc(p["schultyp"])}" '
@@ -872,8 +895,13 @@ def generate_html(postings, geo_cache=None, new_keys=None, profiles=None, first_
             f'data-hours="{hours}" '
             f'data-hbucket="{hbucket}" '
             f'data-bew="{bew}" '
+            f'data-rating="{data_rating}" '
             f'data-skz="{html_esc(skz)}"{lat_attr}{lng_attr}>'
-            f'<td><span class="school-name school-link" onclick="showProfile(\'{html_esc(skz)}\')">{html_esc(p["school_name"])}</span>{cb_badge}{new_badge}{profile_badge}</td>'
+            f'<td>'
+            f'<span class="school-name school-link" onclick="showProfile(\'{html_esc(skz)}\')">{html_esc(p["school_name"])}</span>'
+            f'{cb_badge}{new_badge}'
+            f'{rating_html}'
+            f'</td>'
             f'<td><span class="badge st-{p["schultyp"][:2].lower()}">{html_esc(p["schultyp"])}</span></td>'
             f'<td>{html_esc(p["bezirk"])}</td>'
             f'<td>{html_esc(p["bildungsregion"])}</td>'
@@ -881,7 +909,7 @@ def generate_html(postings, geo_cache=None, new_keys=None, profiles=None, first_
             f'<td class="num">{hours_display}h</td>'
             f'<td data-date="{iso_date}">{html_esc(at_date)}</td>'
             f'<td class="num {bew_class}">{bew}</td>'
-            f'<td class="tage {tage_class}" data-days="{days_online}">{days_online}d</td>'
+            f'<td class="tage {tage_class}" data-days="{days_online}">{tage_label}</td>'
             f'<td class="commute-cell" data-minutes="999999">-</td>'
             f'<td class="link-cell">'
             f'<a href="{maps_url}" target="_blank" rel="noopener" title="Route in Google Maps">Route</a>'
@@ -952,6 +980,73 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans
 .chip.active {{ border-color: var(--primary); background: var(--primary-light); color: var(--primary); font-weight: 600; }}
 .chip.active[data-group="cb"][data-value="1"] {{ border-color: var(--green); background: var(--green-light); color: var(--green); }}
 .chip.active[data-group="cb"][data-value="0"] {{ border-color: var(--rose); background: var(--rose-light); color: var(--rose); }}
+/* Weitere Filter toggle (desktop) */
+.weitere-filter-bar {{ padding-top: 0.25rem; }}
+.weitere-filter-btn {{
+  padding: 0.3rem 0.75rem; font-size: 0.8rem; border: 1px dashed var(--gray-300);
+  border-radius: 6px; background: #fff; cursor: pointer; color: var(--gray-500);
+  display: inline-flex; align-items: center; gap: 0.4rem; transition: all 0.15s;
+}}
+.weitere-filter-btn:hover {{ background: var(--gray-100); color: var(--gray-700); }}
+.weitere-filter-btn.active {{ border-color: var(--primary); color: var(--primary); background: var(--primary-light); }}
+.wf-arrow {{ font-size: 0.65rem; }}
+.weitere-filter-section {{ display: none; padding-top: 0.5rem; border-top: 1px solid var(--gray-100); margin-top: 0.5rem; }}
+.weitere-filter-section.open {{ display: block; }}
+/* Filter badge (active count) */
+.filter-badge {{
+  background: var(--primary); color: #fff;
+  border-radius: 99px; font-size: 0.65rem; font-weight: 700;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+}}
+/* Mobile controls (hidden on desktop) */
+.mobile-controls {{ display: none; }}
+.mobile-search-bar {{ display: flex; gap: 0.5rem; align-items: center; }}
+.mobile-search-bar input {{
+  flex: 1; padding: 0.55rem 0.75rem; font-size: 0.95rem;
+  border: 1px solid var(--gray-300); border-radius: 8px; outline: none;
+}}
+.mobile-search-bar input:focus {{ border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }}
+.mobile-filter-btn {{
+  padding: 0.55rem 1rem; font-size: 0.9rem; font-weight: 600;
+  border: 1.5px solid var(--primary); border-radius: 8px;
+  background: var(--primary); color: #fff; cursor: pointer;
+  display: flex; align-items: center; gap: 0.4rem; white-space: nowrap;
+}}
+.mobile-filter-btn:active {{ background: #1e40af; }}
+/* Bottom sheet */
+.sheet-backdrop {{
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+  z-index: 100; opacity: 0; transition: opacity 0.25s;
+}}
+.sheet-backdrop.open {{ display: block; opacity: 1; }}
+.filter-sheet {{
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 101;
+  background: #fff; border-radius: 16px 16px 0 0;
+  max-height: 80vh; display: flex; flex-direction: column;
+  transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+}}
+.filter-sheet.open {{ transform: translateY(0); }}
+.sheet-header {{
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 1.25rem 0.75rem; border-bottom: 1px solid var(--gray-200);
+  flex-shrink: 0;
+}}
+.sheet-title {{ font-size: 1rem; font-weight: 700; }}
+.sheet-close {{
+  background: none; border: none; font-size: 1.5rem;
+  cursor: pointer; color: var(--gray-500); line-height: 1; padding: 0.25rem;
+}}
+.sheet-body {{ overflow-y: auto; padding: 0.75rem 1.25rem; flex: 1; }}
+.sheet-footer {{
+  padding: 0.75rem 1.25rem 1.25rem; flex-shrink: 0;
+  border-top: 1px solid var(--gray-200);
+}}
+.sheet-apply {{
+  width: 100%; padding: 0.75rem; font-size: 1rem; font-weight: 700;
+  background: var(--primary); color: #fff; border: none; border-radius: 10px; cursor: pointer;
+}}
+.sheet-apply:active {{ background: #1e40af; }}
 .count {{ font-size: 0.85rem; color: var(--gray-500); padding: 0.75rem 2rem 0.5rem; }}
 .table-wrap {{ padding: 0 2rem 2rem; overflow-x: auto; }}
 table {{ border-collapse: collapse; width: 100%; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }}
@@ -994,11 +1089,16 @@ tr.hidden {{ display: none; }}
 .tage-old {{ color: var(--rose); font-weight: 600; }}
 .school-link {{ cursor: pointer; color: var(--primary); }}
 .school-link:hover {{ text-decoration: underline; }}
-.profile-badge {{ cursor: pointer; }}
-.rating-good {{ background: var(--green-light); color: var(--green); }}
-.rating-ok {{ background: var(--amber-light); color: var(--amber); }}
-.rating-low {{ background: var(--rose-light); color: var(--rose); }}
-.profile-info {{ background: var(--primary-light); color: var(--primary); font-size: 0.65rem; }}
+.school-rating {{
+  font-size: 0.75rem; margin-top: 0.2rem; cursor: pointer;
+  display: inline-block; line-height: 1.3;
+}}
+.school-rating:hover {{ text-decoration: underline; }}
+.school-rating.rating-good {{ color: var(--green); }}
+.school-rating.rating-ok {{ color: var(--amber); }}
+.school-rating.rating-low {{ color: var(--rose); }}
+.school-rating.rating-info {{ color: var(--primary); font-size: 0.7rem; }}
+.rating-count {{ color: var(--gray-500); font-size: 0.7rem; }}
 /* Info bar */
 .info-bar {{
   background: var(--primary-light); border-bottom: 1px solid #bfdbfe;
@@ -1012,13 +1112,6 @@ tr.hidden {{ display: none; }}
   cursor: pointer; color: var(--gray-500); padding: 0.25rem;
 }}
 .info-close:hover {{ color: var(--gray-700); }}
-/* Live dot */
-.live-dot {{
-  display: inline-block; width: 8px; height: 8px;
-  background: #34d399; border-radius: 50%; margin-right: 0.3rem;
-  animation: livePulse 2s ease-in-out infinite;
-}}
-@keyframes livePulse {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.4; }} }}
 /* Links section */
 .links-section {{ border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }}
 .links-toggle {{
@@ -1101,72 +1194,90 @@ tr.hidden {{ display: none; }}
 .modal-link.primary {{ background: var(--primary); color: #fff; border-color: var(--primary); }}
 .modal-link.primary:hover {{ background: #1e40af; }}
 .modal-empty {{ font-size: 0.85rem; color: var(--gray-500); font-style: italic; }}
-@media (max-width: 768px) {{
-  .header, .controls, .table-wrap, .count {{ padding-left: 1rem; padding-right: 1rem; }}
-  .header h1 {{ font-size: 1.2rem; }}
-  .header .stats {{ flex-wrap: wrap; gap: 0.5rem; }}
-  .stat {{ flex: 1; min-width: 70px; padding: 0.4rem 0.6rem; }}
+@media (max-width: 640px) {{
+  /* Header */
+  .header {{ padding: 1rem 1rem 1rem; }}
+  .header h1 {{ font-size: 1.15rem; }}
+  .header .stats {{ flex-wrap: wrap; gap: 0.4rem; margin-top: 0.75rem; }}
+  .stat {{ flex: 1 1 40%; min-width: 60px; padding: 0.35rem 0.5rem; }}
   .stat .num {{ font-size: 1rem; }}
-  .stat .label {{ font-size: 0.65rem; }}
-  .filter-label {{ min-width: auto; width: 100%; }}
-  .search-row, .commute-row {{ flex-direction: column; gap: 0.5rem; }}
-  .search-row input, .commute-row input {{ min-width: 0 !important; max-width: none !important; flex: 1 1 auto; }}
-  .commute-btn, .reset-btn {{ width: 100%; }}
-  .info-bar {{ padding: 0.75rem 1rem; }}
-  .links-toggle {{ padding: 0.75rem 1rem; }}
-  .links-content {{ padding: 0 1rem 1rem; }}
-  .links-grid {{ grid-template-columns: 1fr; }}
-  .mobile-sort {{ display: block; padding: 0.5rem 1rem; }}
+  .stat .label {{ font-size: 0.6rem; }}
+  /* Controls: hide desktop, show mobile compact bar */
+  .controls {{ padding: 0.5rem 0.75rem; }}
+  .desktop-controls {{ display: none; }}
+  .mobile-controls {{ display: block; }}
+  /* Mobile sort bar */
+  .mobile-sort {{ display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); }}
+  .mobile-sort-label {{ font-size: 0.75rem; color: var(--gray-500); font-weight: 600; white-space: nowrap; }}
   .mobile-sort select {{
-    width: 100%; padding: 0.5rem; border: 1px solid var(--gray-300);
-    border-radius: 6px; font-size: 0.9rem; background: #fff;
+    flex: 1; padding: 0.35rem 0.5rem; border: 1px solid var(--gray-300);
+    border-radius: 6px; font-size: 0.85rem; background: #fff;
   }}
+  /* Count */
+  .count {{ padding: 0.5rem 0.75rem; font-size: 0.8rem; }}
+  /* Info bar */
+  .info-bar {{ padding: 0.6rem 0.75rem; font-size: 0.8rem; }}
+  /* Links section */
+  .links-toggle {{ padding: 0.6rem 0.75rem; }}
+  .links-content {{ padding: 0 0.75rem 0.75rem; }}
+  .links-grid {{ grid-template-columns: 1fr; }}
   /* Card layout */
-  .table-wrap {{ overflow-x: visible; padding: 0 1rem 1rem; }}
+  .table-wrap {{ overflow-x: visible; padding: 0 0.75rem 1.5rem; }}
   table {{ box-shadow: none; background: transparent; }}
   thead {{ display: none; }}
   tbody {{ display: flex; flex-direction: column; gap: 0.75rem; }}
   tr {{
-    display: block; background: #fff; border-radius: 10px; padding: 1rem;
+    display: block; background: #fff; border-radius: 10px; padding: 0.9rem;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid var(--gray-200);
   }}
   tr.hidden {{ display: none; }}
   tr:hover td {{ background: transparent; }}
-  td {{ display: block; padding: 0.15rem 0; border-bottom: none; font-size: 0.85rem; }}
-  td:nth-child(1) {{ font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--gray-100); }}
-  td:nth-child(2) {{ display: inline-block; margin-bottom: 0.3rem; }}
+  td {{ display: block; padding: 0.12rem 0; border-bottom: none; font-size: 0.85rem; }}
+  td:nth-child(1) {{ font-size: 0.95rem; font-weight: 600; margin-bottom: 0.35rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--gray-100); }}
+  td:nth-child(2) {{ display: inline-block; margin-bottom: 0.25rem; }}
   td:nth-child(3)::before {{ content: "Bezirk: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
   td:nth-child(4)::before {{ content: "Region: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
-  td:nth-child(5) {{ margin: 0.3rem 0; }}
+  td:nth-child(5) {{ margin: 0.25rem 0; }}
   td:nth-child(5)::before {{ content: "Fach: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
   .fach {{ max-width: none !important; }}
   td:nth-child(6), td:nth-child(7), td:nth-child(8), td:nth-child(9) {{
-    display: inline-block; width: 48%; text-align: left; padding: 0.25rem 0;
+    display: inline-block; width: 48%; text-align: left; padding: 0.2rem 0;
   }}
-  td:nth-child(6)::before {{ content: "Stunden: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
-  td:nth-child(7)::before {{ content: "Frist: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
-  td:nth-child(8)::before {{ content: "Bewerber: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
-  td:nth-child(9)::before {{ content: "Online: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
-  td:nth-child(10) {{ margin-top: 0.3rem; }}
-  td:nth-child(10)::before {{ content: "Anfahrt: "; font-weight: 600; color: var(--gray-500); font-size: 0.75rem; }}
-  td:nth-child(11) {{ margin-top: 0.3rem; padding-top: 0.3rem; border-top: 1px solid var(--gray-100); }}
+  td:nth-child(6)::before {{ content: "Stunden: "; font-weight: 600; color: var(--gray-500); font-size: 0.7rem; }}
+  td:nth-child(7)::before {{ content: "Frist: "; font-weight: 600; color: var(--gray-500); font-size: 0.7rem; }}
+  td:nth-child(8)::before {{ content: "Bewerber: "; font-weight: 600; color: var(--gray-500); font-size: 0.7rem; }}
+  td:nth-child(9)::before {{ content: "Online seit: "; font-weight: 600; color: var(--gray-500); font-size: 0.7rem; }}
+  td:nth-child(10) {{ margin-top: 0.25rem; }}
+  td:nth-child(10)::before {{ content: "Anfahrt: "; font-weight: 600; color: var(--gray-500); font-size: 0.7rem; }}
+  td:nth-child(11) {{ margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px solid var(--gray-100); }}
   .num {{ text-align: left; }}
-  .modal {{ width: 95%; max-height: 90vh; }}
+  .modal {{ width: 97%; max-height: 90vh; }}
   .dim-label {{ width: 70px; font-size: 0.75rem; }}
   .dim-comment {{ margin-left: 70px; }}
+  /* Bottom sheet filter groups */
+  .filter-label {{ min-width: auto; width: 100%; }}
+  .commute-row {{ flex-direction: column; gap: 0.5rem; }}
+  .commute-row input {{ min-width: 0 !important; max-width: none !important; flex: 1 1 auto; }}
+  .commute-btn {{ width: 100%; }}
+}}
+@media (min-width: 641px) {{
+  .mobile-controls {{ display: none; }}
+  .mobile-sort {{ display: none !important; }}
+  .filter-sheet {{ display: none !important; }}
+  .sheet-backdrop {{ display: none !important; }}
+  .desktop-controls {{ display: block; }}
 }}
 </style>
 </head>
 <body>
 <div class="header">
   <h1>Offene APS-Stellen Ober\u00f6sterreich</h1>
-  <div class="meta"><span class="live-dot"></span> Stellenausschreibungen f\u00fcr Landeslehrer im Pflichtschulbereich &mdash; Zuletzt aktualisiert: <strong>{now}</strong></div>
+  <div class="meta">Stellenausschreibungen f\u00fcr Landeslehrer im Pflichtschulbereich &mdash; Zuletzt aktualisiert: <strong>{now}</strong></div>
   <div class="stats">
     <div class="stat"><div class="num">{len(postings)}</div><div class="label">Offene Stellen</div></div>
     <div class="stat"><div class="num">{new_count}</div><div class="label">Neu heute</div></div>
     <div class="stat"><div class="num">{zero_applicants}</div><div class="label">Ohne Bewerber</div></div>
     <div class="stat"><div class="num">{cb_count}</div><div class="label">Chancenbonus</div></div>
-    {"<div class='stat'><div class='num'>" + sparkline_html + "</div><div class='label'>Verlauf</div></div>" if sparkline_html else ""}
   </div>
 </div>
 <div class="info-bar" id="infoBar">
@@ -1179,41 +1290,130 @@ tr.hidden {{ display: none; }}
   <button class="info-close" onclick="document.getElementById('infoBar').style.display='none';localStorage.setItem('infoHidden','1')">&times;</button>
 </div>
 <script>if(localStorage.getItem('infoHidden')==='1')document.getElementById('infoBar').style.display='none';</script>
-<div class="controls">
-  <div class="search-row">
-    <input type="text" id="q" placeholder="Suche (Schule, Fach, Ort...)" oninput="applyFilters()">
-    <button class="reset-btn" onclick="resetAll()">Zur\u00fccksetzen</button>
+<div class="controls" id="controls">
+  <!-- Desktop + tablet: full filter controls -->
+  <div class="desktop-controls">
+    <div class="search-row">
+      <input type="text" id="q" placeholder="Suche (Schule, Fach, Ort...)" oninput="applyFilters();updateFilterBadge()">
+      <button class="reset-btn" onclick="resetAll()">Zur\u00fccksetzen</button>
+    </div>
+    <div class="commute-row">
+      <input type="text" id="address" placeholder="Ihre Adresse eingeben (z.B. Hauptplatz 1, Linz)" onkeydown="if(event.key==='Enter')calcCommute()">
+      <button class="commute-btn" id="commuteBtn" onclick="calcCommute()">Anfahrt berechnen</button>
+      <span class="commute-status" id="commuteStatus"></span>
+    </div>
+    <!-- Essential filters: always visible -->
+    <div class="filter-group">
+      <span class="filter-label">Schultyp</span>
+      {chips(schultypen, "schultyp")}
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Stunden</span>
+      <button class="chip" data-group="hbucket" data-value="1-10h" onclick="toggleChip(this)">1\u201310h</button>
+      <button class="chip" data-group="hbucket" data-value="11-15h" onclick="toggleChip(this)">11\u201315h</button>
+      <button class="chip" data-group="hbucket" data-value="16-20h" onclick="toggleChip(this)">16\u201320h</button>
+      <button class="chip" data-group="hbucket" data-value="21-22h" onclick="toggleChip(this)">21\u201322h</button>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Schnellfilter</span>
+      <button class="chip" data-group="new" data-value="1" onclick="toggleChip(this)">Nur neue Stellen</button>
+      <button class="chip" data-group="nobew" data-value="1" onclick="toggleChip(this)">Ohne Bewerber</button>
+    </div>
+    <!-- Weitere Filter: collapsible -->
+    <div class="weitere-filter-bar">
+      <button class="weitere-filter-btn" id="weitereFilterBtn" onclick="toggleWeitereFilter()">
+        Weitere Filter <span class="wf-arrow">&#x25BE;</span>
+        <span class="filter-badge" id="filterBadge" style="display:none">0</span>
+      </button>
+    </div>
+    <div class="weitere-filter-section" id="weitereFilterSection">
+      <div class="filter-group">
+        <span class="filter-label">Region</span>
+        {chips(regionen, "region")}
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Bezirk</span>
+        {chips(bezirke, "bezirk")}
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Chancenbonus</span>
+        <button class="chip" data-group="cb" data-value="1" onclick="toggleChip(this)">Nur Chancenbonus</button>
+        <button class="chip" data-group="cb" data-value="0" onclick="toggleChip(this)">Ohne Chancenbonus</button>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Bewertung</span>
+        <button class="chip" data-group="rating" data-value="any" onclick="toggleChip(this)">Bewertet</button>
+        <button class="chip" data-group="rating" data-value="3" onclick="toggleChip(this)">\u2605 3+</button>
+        <button class="chip" data-group="rating" data-value="4" onclick="toggleChip(this)">\u2605 4+</button>
+      </div>
+    </div>
   </div>
-  <div class="commute-row">
-    <input type="text" id="address" placeholder="Ihre Adresse eingeben (z.B. Hauptplatz 1, Linz)" onkeydown="if(event.key==='Enter')calcCommute()">
-    <button class="commute-btn" id="commuteBtn" onclick="calcCommute()">Anfahrt berechnen</button>
-    <span class="commute-status" id="commuteStatus"></span>
+  <!-- Mobile: compact bar (search + filter button) -->
+  <div class="mobile-controls">
+    <div class="mobile-search-bar">
+      <input type="text" id="qm" placeholder="Suche..." oninput="document.getElementById('q').value=this.value;applyFilters();updateFilterBadge()">
+      <button class="mobile-filter-btn" onclick="openFilterSheet()">
+        Filter
+        <span class="filter-badge" id="mobileFilterBadge" style="display:none">0</span>
+      </button>
+    </div>
   </div>
-  <div class="filter-group">
-    <span class="filter-label">Schultyp</span>
-    {chips(schultypen, "schultyp")}
+</div>
+<!-- Mobile filter bottom sheet backdrop -->
+<div class="sheet-backdrop" id="sheetBackdrop" onclick="closeFilterSheet()"></div>
+<!-- Mobile filter bottom sheet -->
+<div class="filter-sheet" id="filterSheet">
+  <div class="sheet-header">
+    <span class="sheet-title">Filter</span>
+    <button class="sheet-close" onclick="closeFilterSheet()">&times;</button>
   </div>
-  <div class="filter-group">
-    <span class="filter-label">Region</span>
-    {chips(regionen, "region")}
+  <div class="sheet-body">
+    <div class="commute-row">
+      <input type="text" id="addressM" placeholder="Adresse (z.B. Hauptplatz 1, Linz)" onkeydown="if(event.key==='Enter'){{document.getElementById('address').value=this.value;calcCommute();}}">
+      <button class="commute-btn" onclick="document.getElementById('address').value=document.getElementById('addressM').value;calcCommute()">Anfahrt berechnen</button>
+      <span class="commute-status" id="commuteStatusM"></span>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Schultyp</span>
+      {chips(schultypen, "schultyp")}
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Stunden</span>
+      <button class="chip" data-group="hbucket" data-value="1-10h" onclick="toggleChip(this)">1\u201310h</button>
+      <button class="chip" data-group="hbucket" data-value="11-15h" onclick="toggleChip(this)">11\u201315h</button>
+      <button class="chip" data-group="hbucket" data-value="16-20h" onclick="toggleChip(this)">16\u201320h</button>
+      <button class="chip" data-group="hbucket" data-value="21-22h" onclick="toggleChip(this)">21\u201322h</button>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Region</span>
+      {chips(regionen, "region")}
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Bezirk</span>
+      {chips(bezirke, "bezirk")}
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Chancenbonus</span>
+      <button class="chip" data-group="cb" data-value="1" onclick="toggleChip(this)">Nur Chancenbonus</button>
+      <button class="chip" data-group="cb" data-value="0" onclick="toggleChip(this)">Ohne Chancenbonus</button>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Schnellfilter</span>
+      <button class="chip" data-group="new" data-value="1" onclick="toggleChip(this)">Nur neue Stellen</button>
+      <button class="chip" data-group="nobew" data-value="1" onclick="toggleChip(this)">Ohne Bewerber</button>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Bewertung</span>
+      <button class="chip" data-group="rating" data-value="any" onclick="toggleChip(this)">Bewertet</button>
+      <button class="chip" data-group="rating" data-value="3" onclick="toggleChip(this)">\u2605 3+</button>
+      <button class="chip" data-group="rating" data-value="4" onclick="toggleChip(this)">\u2605 4+</button>
+    </div>
+    <div class="filter-group">
+      <button class="reset-btn" style="width:100%" onclick="resetAll()">Alle Filter zur\u00fccksetzen</button>
+    </div>
   </div>
-  <div class="filter-group">
-    <span class="filter-label">Bezirk</span>
-    {chips(bezirke, "bezirk")}
-  </div>
-  <div class="filter-group">
-    <span class="filter-label">Stunden</span>
-    <button class="chip" data-group="hbucket" data-value="1-10h" onclick="toggleChip(this)">1-10h</button>
-    <button class="chip" data-group="hbucket" data-value="11-15h" onclick="toggleChip(this)">11-15h</button>
-    <button class="chip" data-group="hbucket" data-value="16-20h" onclick="toggleChip(this)">16-20h</button>
-    <button class="chip" data-group="hbucket" data-value="21-22h" onclick="toggleChip(this)">21-22h</button>
-  </div>
-  <div class="filter-group">
-    <span class="filter-label">Sonstiges</span>
-    <button class="chip" data-group="cb" data-value="1" onclick="toggleChip(this)">Nur Chancenbonus</button>
-    <button class="chip" data-group="cb" data-value="0" onclick="toggleChip(this)">Ohne Chancenbonus</button>
-    <button class="chip" data-group="new" data-value="1" onclick="toggleChip(this)">Nur neue Stellen</button>
-    <button class="chip" data-group="nobew" data-value="1" onclick="toggleChip(this)">Ohne Bewerber</button>
+  <div class="sheet-footer">
+    <button class="sheet-apply" id="sheetApplyBtn" onclick="closeFilterSheet()">Stellen anzeigen</button>
   </div>
 </div>
 <div class="links-section">
@@ -1266,13 +1466,14 @@ tr.hidden {{ display: none; }}
   </div>
 </div>
 <div class="mobile-sort" id="mobileSort">
+  <span class="mobile-sort-label">Sortieren:</span>
   <select onchange="mobileSortChange(this.value)">
-    <option value="">Sortieren nach...</option>
-    <option value="0">Schule</option>
+    <option value="">Standard</option>
+    <option value="0">Schule A\u2013Z</option>
     <option value="5">Stunden</option>
     <option value="6">Frist</option>
     <option value="7">Bewerber</option>
-    <option value="8">Tage online</option>
+    <option value="8">Online seit</option>
     <option value="9">Anfahrt</option>
   </select>
 </div>
@@ -1288,7 +1489,7 @@ tr.hidden {{ display: none; }}
 <th class="sortable" onclick="sortTable(5)">Stunden</th>
 <th class="sortable" onclick="sortTable(6)">Frist</th>
 <th class="sortable" onclick="sortTable(7)">Bewerber</th>
-<th class="sortable" onclick="sortTable(8)">Tage</th>
+<th class="sortable" onclick="sortTable(8)">Online seit</th>
 <th class="sortable" onclick="sortTable(9)">Anfahrt</th>
 <th class="no-sort">Links</th>
 </tr></thead>
@@ -1300,13 +1501,29 @@ tr.hidden {{ display: none; }}
 <script>
 const GEO = {geo_json};
 const PROFILES = {profiles_json};
-const filters = {{ schultyp: new Set(), region: new Set(), bezirk: new Set(), hbucket: new Set(), cb: new Set(), "new": new Set(), nobew: new Set() }};
+const filters = {{ schultyp: new Set(), region: new Set(), bezirk: new Set(), hbucket: new Set(), cb: new Set(), "new": new Set(), nobew: new Set(), rating: new Set() }};
 
 function toggleChip(el) {{
   const g = el.dataset.group, v = el.dataset.value;
   if (filters[g].has(v)) {{ filters[g].delete(v); el.classList.remove("active"); }}
   else {{ filters[g].add(v); el.classList.add("active"); }}
   applyFilters();
+  updateFilterBadge();
+}}
+
+function countActiveFilters() {{
+  let n = 0;
+  for (const g in filters) n += filters[g].size;
+  if (document.getElementById("q") && document.getElementById("q").value.trim()) n++;
+  return n;
+}}
+
+function updateFilterBadge() {{
+  const n = countActiveFilters();
+  const badge = document.getElementById("filterBadge");
+  const mBadge = document.getElementById("mobileFilterBadge");
+  if (badge) {{ badge.textContent = n > 0 ? n : ""; badge.style.display = n > 0 ? "inline-flex" : "none"; }}
+  if (mBadge) {{ mBadge.textContent = n > 0 ? n : ""; mBadge.style.display = n > 0 ? "inline-flex" : "none"; }}
 }}
 
 function applyFilters() {{
@@ -1322,10 +1539,22 @@ function applyFilters() {{
     if (vis && filters.cb.size && !filters.cb.has(r.dataset.cb)) vis = false;
     if (vis && filters["new"].size && r.dataset.new !== "1") vis = false;
     if (vis && filters.nobew.size && r.dataset.bew !== "0") vis = false;
+    if (vis && filters.rating.size) {{
+      const rv = parseFloat(r.dataset.rating) || 0;
+      let ok = false;
+      for (const req of filters.rating) {{
+        if (req === "any" && rv > 0) {{ ok = true; break; }}
+        if (req !== "any" && rv >= parseFloat(req)) {{ ok = true; break; }}
+      }}
+      if (!ok) vis = false;
+    }}
     r.classList.toggle("hidden", !vis);
     if (vis) shown++;
   }});
   document.getElementById("count").textContent = shown + " Stellen angezeigt";
+  // Update bottom sheet result count if open
+  const applyBtn = document.getElementById("sheetApplyBtn");
+  if (applyBtn) applyBtn.textContent = shown + " Stellen anzeigen";
 }}
 
 function resetAll() {{
@@ -1335,7 +1564,33 @@ function resetAll() {{
   document.querySelectorAll(".commute-cell").forEach(c => {{ c.textContent = "-"; c.className = "commute-cell"; c.dataset.minutes = "999999"; }});
   document.getElementById("address").value = "";
   document.getElementById("commuteStatus").textContent = "";
+  const ms = document.getElementById("commuteStatusM");
+  if (ms) ms.textContent = "";
   applyFilters();
+  updateFilterBadge();
+}}
+
+// Bottom sheet (mobile filter drawer)
+function openFilterSheet() {{
+  document.getElementById("filterSheet").classList.add("open");
+  document.getElementById("sheetBackdrop").classList.add("open");
+  document.body.style.overflow = "hidden";
+  applyFilters(); // update count in apply button
+}}
+function closeFilterSheet() {{
+  document.getElementById("filterSheet").classList.remove("open");
+  document.getElementById("sheetBackdrop").classList.remove("open");
+  document.body.style.overflow = "";
+}}
+
+// Weitere Filter toggle (desktop)
+function toggleWeitereFilter() {{
+  const section = document.getElementById("weitereFilterSection");
+  const btn = document.getElementById("weitereFilterBtn");
+  const isOpen = section.classList.contains("open");
+  section.classList.toggle("open", !isOpen);
+  btn.classList.toggle("active", !isOpen);
+  btn.querySelector(".wf-arrow").textContent = isOpen ? "▾" : "▴";
 }}
 
 let sortDir = {{}};
@@ -1374,9 +1629,13 @@ async function calcCommute() {{
   const addr = document.getElementById("address").value.trim();
   if (!addr) return;
   const btn = document.getElementById("commuteBtn");
-  const status = document.getElementById("commuteStatus");
+  const setStatus = t => {{
+    document.getElementById("commuteStatus").textContent = t;
+    const ms = document.getElementById("commuteStatusM");
+    if (ms) ms.textContent = t;
+  }};
   btn.disabled = true;
-  status.textContent = "Adresse wird gesucht...";
+  setStatus("Adresse wird gesucht...");
 
   try {{
     // Geocode user address via Nominatim
@@ -1387,13 +1646,13 @@ async function calcCommute() {{
     );
     const geoData = await geoResp.json();
     if (!geoData.length) {{
-      status.textContent = "Adresse nicht gefunden. Bitte genauer eingeben.";
+      setStatus("Adresse nicht gefunden. Bitte genauer eingeben.");
       btn.disabled = false;
       return;
     }}
     const userLat = parseFloat(geoData[0].lat);
     const userLng = parseFloat(geoData[0].lon);
-    status.textContent = "Fahrzeiten werden berechnet...";
+    setStatus("Fahrzeiten werden berechnet...");
 
     // Collect all unique school coordinates
     const rows = document.querySelectorAll("#stellen tbody tr");
@@ -1408,7 +1667,7 @@ async function calcCommute() {{
     }});
 
     if (!schoolCoords.length) {{
-      status.textContent = "Keine Schulkoordinaten verfügbar.";
+      setStatus("Keine Schulkoordinaten verf\u00fcgbar.");
       btn.disabled = false;
       return;
     }}
@@ -1424,7 +1683,7 @@ async function calcCommute() {{
     const osrmData = await osrmResp.json();
 
     if (osrmData.code !== "Ok") {{
-      status.textContent = "Routenberechnung fehlgeschlagen. Bitte erneut versuchen.";
+      setStatus("Routenberechnung fehlgeschlagen. Bitte erneut versuchen.");
       btn.disabled = false;
       return;
     }}
@@ -1465,14 +1724,14 @@ async function calcCommute() {{
       }}
     }});
 
-    status.textContent = "Typische Pendelzeit (Auto, 6:30\u20137:30 Uhr)";
+    setStatus("Typische Pendelzeit (Auto, 6:30\u20137:30 Uhr)");
 
     // Auto-sort by commute time
     sortDir[9] = false;
     sortTable(9);
 
   }} catch(e) {{
-    status.textContent = "Fehler: " + e.message;
+    setStatus("Fehler: " + e.message);
   }}
   btn.disabled = false;
 }}
@@ -1665,10 +1924,8 @@ def main():
 
     print("Computing historical data...")
     first_seen = compute_first_seen()
-    daily_counts = compute_daily_counts()
-    sparkline = sparkline_svg(daily_counts)
 
-    generate_html(all_postings, geo_cache, new_keys, profiles, first_seen, sparkline)
+    generate_html(all_postings, geo_cache, new_keys, profiles, first_seen)
 
     if previous is None:
         print("First run — no previous data to compare.")
