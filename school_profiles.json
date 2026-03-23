@@ -198,5 +198,13 @@
       "address": "Keplerstraße 13a, 4040 Linz",
       "fetched_at": "2026-03-20"
     }
+  },
+  "402051": {
+    "stats": {
+      "students": 136,
+      "classes": 9,
+      "address": "Karl-Punzer-Straße 73-75, 4400 Steyr",
+      "fetched_at": "2026-03-23"
+    }
   }
 }
