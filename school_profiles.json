@@ -206,5 +206,21 @@
       "address": "Karl-Punzer-Straße 73-75, 4400 Steyr",
       "fetched_at": "2026-03-23"
     }
+  },
+  "417092": {
+    "stats": {
+      "students": 211,
+      "classes": 10,
+      "address": "Freizeitpark 4, 4690 Schwanenstadt",
+      "fetched_at": "2026-03-31"
+    }
+  },
+  "401621": {
+    "stats": {
+      "students": 175,
+      "classes": 8,
+      "address": "Brucknerstraße 8, 4020 Linz",
+      "fetched_at": "2026-03-31"
+    }
   }
 }
