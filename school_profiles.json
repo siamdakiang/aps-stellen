@@ -222,5 +222,13 @@
       "address": "Brucknerstraße 8, 4020 Linz",
       "fetched_at": "2026-03-31"
     }
+  },
+  "416062": {
+    "stats": {
+      "students": 180,
+      "classes": 8,
+      "address": "Bahnhofstraße 5, 4100 Ottensheim",
+      "fetched_at": "2026-04-09"
+    }
   }
 }
