@@ -230,5 +230,13 @@
       "address": "Bahnhofstraße 5, 4100 Ottensheim",
       "fetched_at": "2026-04-09"
     }
+  },
+  "403061": {
+    "stats": {
+      "students": 290,
+      "classes": 14,
+      "address": "Rablstraße 24, 4601 Wels",
+      "fetched_at": "2026-04-10"
+    }
   }
 }
