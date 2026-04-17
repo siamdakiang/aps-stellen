@@ -238,5 +238,13 @@
       "address": "Rablstraße 24, 4601 Wels",
       "fetched_at": "2026-04-10"
     }
+  },
+  "414021": {
+    "stats": {
+      "students": 96,
+      "classes": 5,
+      "address": "St. Aegidi 34, 4725 St. Aegidi",
+      "fetched_at": "2026-04-17"
+    }
   }
 }
