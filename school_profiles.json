@@ -246,5 +246,13 @@
       "address": "St. Aegidi 34, 4725 St. Aegidi",
       "fetched_at": "2026-04-17"
     }
+  },
+  "404051": {
+    "stats": {
+      "students": 180,
+      "classes": 10,
+      "address": "Auf der Schanz 12, 5280 Braunau am Inn",
+      "fetched_at": "2026-04-25"
+    }
   }
 }
