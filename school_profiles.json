@@ -1075,5 +1075,37 @@
       "address": "Kirchenplatz 1, 4641 Steinhaus",
       "fetched_at": "2026-07-01"
     }
+  },
+  "411152": {
+    "stats": {
+      "students": 166,
+      "classes": 9,
+      "address": "Waidhofer Straße 2, 4320 Perg",
+      "fetched_at": "2026-07-02"
+    }
+  },
+  "403081": {
+    "stats": {
+      "students": 410,
+      "classes": 19,
+      "address": "Neustadt, Grieskirchnerstraße 10, 4600 Wels",
+      "fetched_at": "2026-07-02"
+    }
+  },
+  "401312": {
+    "stats": {
+      "students": 212,
+      "classes": 9,
+      "address": "Wieningerstraße 15, 4020 Linz",
+      "fetched_at": "2026-07-02"
+    }
+  },
+  "402072": {
+    "stats": {
+      "students": 264,
+      "classes": 13,
+      "address": "Karl-Punzer-Straße 73,  Münichholz, 4400 Steyr",
+      "fetched_at": "2026-07-02"
+    }
   }
 }
