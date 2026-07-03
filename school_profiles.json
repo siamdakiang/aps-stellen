@@ -1107,5 +1107,13 @@
       "address": "Karl-Punzer-Straße 73,  Münichholz, 4400 Steyr",
       "fetched_at": "2026-07-02"
     }
+  },
+  "415141": {
+    "stats": {
+      "students": 70,
+      "classes": 4,
+      "address": "Eisenstraße 43, 4460 Losenstein",
+      "fetched_at": "2026-07-03"
+    }
   }
 }
