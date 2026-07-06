@@ -1115,5 +1115,13 @@
       "address": "Eisenstraße 43, 4460 Losenstein",
       "fetched_at": "2026-07-03"
     }
+  },
+  "401073": {
+    "stats": {
+      "students": 102,
+      "classes": 13,
+      "address": "Flötzerweg 61a, 4020 Linz",
+      "fetched_at": "2026-07-06"
+    }
   }
 }
