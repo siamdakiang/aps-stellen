@@ -1123,5 +1123,45 @@
       "address": "Flötzerweg 61a, 4020 Linz",
       "fetched_at": "2026-07-06"
     }
+  },
+  "411231": {
+    "stats": {
+      "students": 33,
+      "classes": 3,
+      "address": "St. Nikola an der Donau 3, 4381 St. Nikola an der Donau",
+      "fetched_at": "2026-07-07"
+    }
+  },
+  "417202": {
+    "stats": {
+      "students": 329,
+      "classes": 15,
+      "address": "Schulweg 4, 5310 Mondsee",
+      "fetched_at": "2026-07-07"
+    }
+  },
+  "402033": {
+    "stats": {
+      "students": 118,
+      "classes": 10,
+      "address": "Industriestraße 4-6, 4400 Steyr",
+      "fetched_at": "2026-07-07"
+    }
+  },
+  "416032": {
+    "stats": {
+      "students": 247,
+      "classes": 12,
+      "address": "Linzerstraße 19, 4201 Gramastetten",
+      "fetched_at": "2026-07-07"
+    }
+  },
+  "412371": {
+    "stats": {
+      "students": 86,
+      "classes": 5,
+      "address": "Schulstraße 4, 4753 Taiskirchen im Innkreis",
+      "fetched_at": "2026-07-07"
+    }
   }
 }
