@@ -1163,5 +1163,53 @@
       "address": "Schulstraße 4, 4753 Taiskirchen im Innkreis",
       "fetched_at": "2026-07-07"
     }
+  },
+  "406044": {
+    "stats": {
+      "students": 100,
+      "classes": 4,
+      "address": "Parkstraße 1, 4230 Pregarten",
+      "fetched_at": "2026-07-09"
+    }
+  },
+  "414072": {
+    "stats": {
+      "students": 255,
+      "classes": 14,
+      "address": "Schulstraße 5a, 4780 Schärding",
+      "fetched_at": "2026-07-09"
+    }
+  },
+  "401023": {
+    "stats": {
+      "students": 97,
+      "classes": 12,
+      "address": "Khevenhüllerstraße 3, 4020 Linz",
+      "fetched_at": "2026-07-09"
+    }
+  },
+  "406132": {
+    "stats": {
+      "students": 250,
+      "classes": 12,
+      "address": "Schulstraße 4, 4283 Bad Zell",
+      "fetched_at": "2026-07-09"
+    }
+  },
+  "401491": {
+    "stats": {
+      "students": 187,
+      "classes": 9,
+      "address": "Kaltenhauserstraße 2, 4040 Linz",
+      "fetched_at": "2026-07-09"
+    }
+  },
+  "402042": {
+    "stats": {
+      "students": 174,
+      "classes": 8,
+      "address": "Tabor, Taschelried 1, 4400 Steyr",
+      "fetched_at": "2026-07-09"
+    }
   }
 }
