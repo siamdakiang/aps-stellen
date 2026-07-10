@@ -1211,5 +1211,13 @@
       "address": "Tabor, Taschelried 1, 4400 Steyr",
       "fetched_at": "2026-07-09"
     }
+  },
+  "401191": {
+    "stats": {
+      "students": 260,
+      "classes": 13,
+      "address": "Hölderlinstraße 9, 4020 Linz",
+      "fetched_at": "2026-07-10"
+    }
   }
 }
