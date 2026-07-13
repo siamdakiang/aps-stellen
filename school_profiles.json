@@ -1219,5 +1219,21 @@
       "address": "Hölderlinstraße 9, 4020 Linz",
       "fetched_at": "2026-07-10"
     }
+  },
+  "409082": {
+    "stats": {
+      "students": 296,
+      "classes": 15,
+      "address": "Adalbert - Stifterstraße 4, 4560 Kirchdorf an der Krems",
+      "fetched_at": "2026-07-13"
+    }
+  },
+  "410301": {
+    "stats": {
+      "students": 252,
+      "classes": 13,
+      "address": "Untere Dorfstraße 147, 4050 Traun",
+      "fetched_at": "2026-07-13"
+    }
   }
 }
