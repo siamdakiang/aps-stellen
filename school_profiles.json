@@ -1235,5 +1235,45 @@
       "address": "Untere Dorfstraße 147, 4050 Traun",
       "fetched_at": "2026-07-13"
     }
+  },
+  "403052": {
+    "stats": {
+      "students": 366,
+      "classes": 18,
+      "address": "Lichtenegg, Zeileisstraße 1, 4600 Wels",
+      "fetched_at": "2026-07-16"
+    }
+  },
+  "411092": {
+    "stats": {
+      "students": 98,
+      "classes": 5,
+      "address": "Schulgasse 9, 4372 St. Georgen am Walde",
+      "fetched_at": "2026-07-16"
+    }
+  },
+  "401091": {
+    "stats": {
+      "students": 367,
+      "classes": 16,
+      "address": "Zeppelinstraße 44, 4030 Linz",
+      "fetched_at": "2026-07-16"
+    }
+  },
+  "415161": {
+    "stats": {
+      "students": 96,
+      "classes": 5,
+      "address": "Neustift 11, 4443 Maria Neustift",
+      "fetched_at": "2026-07-16"
+    }
+  },
+  "402012": {
+    "stats": {
+      "students": 309,
+      "classes": 17,
+      "address": "Promenade 16, 4400 Steyr",
+      "fetched_at": "2026-07-16"
+    }
   }
 }
