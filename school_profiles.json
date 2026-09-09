@@ -1275,5 +1275,309 @@
       "address": "Promenade 16, 4400 Steyr",
       "fetched_at": "2026-07-16"
     }
+  },
+  "401062": {
+    "stats": {
+      "students": 282,
+      "classes": 13,
+      "address": "Khevenhüllerstraße 3, 4020 Linz",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "401172": {
+    "stats": {
+      "students": 313,
+      "classes": 14,
+      "address": "Zeppelinstraße 44, 4030 Linz",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "401441": {
+    "stats": {
+      "students": 276,
+      "classes": 13,
+      "address": "Rathfeldstraße 69, 4033 Linz-Ebelsberg",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "402013": {
+    "stats": {
+      "students": 39,
+      "classes": 9,
+      "address": "Gleinker-Hauptstraße 7, 4407 Steyr-Gleink",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "404033": {
+    "stats": {
+      "students": 30,
+      "classes": 4,
+      "address": "Trattmannsberger Weg 4c, 5230 Mattighofen",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "404082": {
+    "stats": {
+      "students": 374,
+      "classes": 17,
+      "address": "Trattmannsbergerweg 4b, 5230 Mattighofen",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "404411": {
+    "stats": {
+      "students": 76,
+      "classes": 4,
+      "address": "Roßbach bei Mauerkirchen 50, 5273 Roßbach",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "404451": {
+    "stats": {
+      "students": 22,
+      "classes": 1,
+      "address": "St. Georgen 19, 5144 St. Georgen am Fillmannsbach",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "404461": {
+    "stats": {
+      "students": 72,
+      "classes": 5,
+      "address": "St. Johann am Walde 45, 5242 St. Johann am Walde",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "404531": {
+    "stats": {
+      "students": 17,
+      "classes": 1,
+      "address": "Dorfstraße 18, 5123 Überackern",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "405044": {
+    "stats": {
+      "students": 32,
+      "classes": 2,
+      "address": "Welser Straße 17, 4070 Eferding",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "406162": {
+    "stats": {
+      "students": 428,
+      "classes": 19,
+      "address": "Althauserstraße 10, 4230 Pregarten",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "407121": {
+    "stats": {
+      "students": 84,
+      "classes": 6,
+      "address": "Kirchenplatz 4, 4645 Grünau im Almtal",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "408012": {
+    "stats": {
+      "students": 172,
+      "classes": 8,
+      "address": "Schulstraße 4, 4701 Bad Schallerbach",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "408014": {
+    "stats": {
+      "students": 73,
+      "classes": 3,
+      "address": "Parzer Schulstraße 1, 4710 Grieskirchen",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "409042": {
+    "stats": {
+      "students": 402,
+      "classes": 16,
+      "address": "Scharnsteiner Straße 5, 4643 Pettenbach",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "410062": {
+    "stats": {
+      "students": 347,
+      "classes": 16,
+      "address": "Wiener Straße 44, 4490 St. Florian",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "410241": {
+    "stats": {
+      "students": 163,
+      "classes": 9,
+      "address": "Westzeile 12, 4061 Pasching",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "410381": {
+    "stats": {
+      "students": 255,
+      "classes": 13,
+      "address": "Herderstraße 36, 4060 Leonding",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "412032": {
+    "stats": {
+      "students": 129,
+      "classes": 8,
+      "address": "Schulstraße 12, 4931 Mettmach",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "412111": {
+    "stats": {
+      "students": 82,
+      "classes": 5,
+      "address": "Dorfstraße 9, 4921 Hohenzell",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "413022": {
+    "stats": {
+      "students": 60,
+      "classes": 3,
+      "address": "Sternwaldstraße 24, 4170 Haslach an der Mühl",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "414041": {
+    "stats": {
+      "students": 251,
+      "classes": 13,
+      "address": "Hans-Holz-Straße 1, 4770 Andorf",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "414321": {
+    "stats": {
+      "students": 46,
+      "classes": 2,
+      "address": "Waldkirchen 22, 4085 Waldkirchen am Wesen",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "414331": {
+    "stats": {
+      "students": 58,
+      "classes": 3,
+      "address": "Schulstraße 7, 4783 Wernstein am Inn",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "414371": {
+    "stats": {
+      "students": 95,
+      "classes": 6,
+      "address": "Bgm.Felix Meier - Str. 1, 4755 Zell an der Pram",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "415211": {
+    "stats": {
+      "students": 103,
+      "classes": 6,
+      "address": "Schulstraße 1, 4532 Rohr im Kremstal",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "415341": {
+    "stats": {
+      "students": 114,
+      "classes": 8,
+      "address": "Möderndorferstraße 2, 4540 Pfarrkirchen bei Bad Hall",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "417012": {
+    "stats": {
+      "students": 132,
+      "classes": 8,
+      "address": "Dr. Karl Rennerstraße 22, 4843 Ampflwang im Hausruckwald",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "417032": {
+    "stats": {
+      "students": 192,
+      "classes": 10,
+      "address": "Hauptstraße 29, 4873 Frankenburg am Hausruck",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "417191": {
+    "stats": {
+      "students": 131,
+      "classes": 8,
+      "address": "Thal 15, 4860 Lenzing",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "417192": {
+    "stats": {
+      "students": 149,
+      "classes": 8,
+      "address": "Dr. Rudolf Schuhstraße 2, 4863 Seewalchen am Attersee",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "418091": {
+    "stats": {
+      "students": 232,
+      "classes": 11,
+      "address": "Hafferlstraße 7, 4650 Lambach",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "418092": {
+    "stats": {
+      "students": 177,
+      "classes": 8,
+      "address": "Landstraße 20, 4652 Steinerkirchen an der Traun",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "407142": {
+    "stats": {
+      "students": 288,
+      "classes": 16,
+      "address": "Europaplatz 4, 4663 Laakirchen",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "412062": {
+    "stats": {
+      "students": 179,
+      "classes": 10,
+      "address": "Peter Rosegger Straße 2, 4910 Ried im Innkreis",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "406034": {
+    "stats": {
+      "students": 91,
+      "classes": 4,
+      "address": "Linzer Straße 6a, 4240 Freistadt",
+      "fetched_at": "2026-09-09"
+    }
+  },
+  "417291": {
+    "stats": {
+      "students": 65,
+      "classes": 4,
+      "address": "Puchkirchen 5, 4849 Puchkirchen am Trattberg",
+      "fetched_at": "2026-09-09"
+    }
   }
 }
