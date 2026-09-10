@@ -1579,5 +1579,13 @@
       "address": "Puchkirchen 5, 4849 Puchkirchen am Trattberg",
       "fetched_at": "2026-09-09"
     }
+  },
+  "404581": {
+    "stats": {
+      "students": 230,
+      "classes": 11,
+      "address": "Sparkassenstraße 2, 5280 Braunau am Inn",
+      "fetched_at": "2026-09-10"
+    }
   }
 }
