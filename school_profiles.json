@@ -1587,5 +1587,21 @@
       "address": "Sparkassenstraße 2, 5280 Braunau am Inn",
       "fetched_at": "2026-09-10"
     }
+  },
+  "417154": {
+    "stats": {
+      "students": 85,
+      "classes": 4,
+      "address": "Mühlfeldstraße 1, 4690 Schwanenstadt",
+      "fetched_at": "2026-09-15"
+    }
+  },
+  "418102": {
+    "stats": {
+      "students": 220,
+      "classes": 11,
+      "address": "Am Bräuberg 3, 4651 Stadl-Paura",
+      "fetched_at": "2026-09-15"
+    }
   }
 }
