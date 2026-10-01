@@ -1603,5 +1603,213 @@
       "address": "Am Bräuberg 3, 4651 Stadl-Paura",
       "fetched_at": "2026-09-15"
     }
+  },
+  "401171": {
+    "stats": {
+      "students": 292,
+      "classes": 13,
+      "address": "Franckstraße 70, 4020 Linz",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "401302": {
+    "stats": {
+      "students": 218,
+      "classes": 9,
+      "address": "Dornacherstraße 35, 4040 Linz, Donau",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "401591": {
+    "stats": {
+      "students": 289,
+      "classes": 14,
+      "address": "Heliosallee 140-142, 4030 Linz",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "402082": {
+    "stats": {
+      "students": 158,
+      "classes": 8,
+      "address": "Tabor, Taschelried 1, 4400 Steyr",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "404064": {
+    "stats": {
+      "students": 81,
+      "classes": 4,
+      "address": "Trattmannsbergerweg 4, 5230 Mattighofen",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "405111": {
+    "stats": {
+      "students": 91,
+      "classes": 5,
+      "address": "Limberg 16, 4070 Hinzenbach",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "407052": {
+    "stats": {
+      "students": 118,
+      "classes": 8,
+      "address": "Habertstraße 7-9, 4810 Gmunden",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "407391": {
+    "stats": {
+      "students": 73,
+      "classes": 4,
+      "address": "Mitterndorf 10, 4801 Traunkirchen",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "408162": {
+    "stats": {
+      "students": 118,
+      "classes": 7,
+      "address": "Schulweg 1, 4084 St. Agatha",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "408291": {
+    "stats": {
+      "students": 43,
+      "classes": 2,
+      "address": "Sankt Georgen bei Grieskirchen 31, 4710 Grieskirchen",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "409231": {
+    "stats": {
+      "students": 118,
+      "classes": 7,
+      "address": "Hauptstraße 30, 4551 Ried im Traunkreis",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "410162": {
+    "stats": {
+      "students": 200,
+      "classes": 9,
+      "address": "Haiderstraße 8, 4052 Ansfelden",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "410291": {
+    "stats": {
+      "students": 326,
+      "classes": 16,
+      "address": "Sankt Dionysen, Weidfeldstraße 104, 4050 Traun",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "411032": {
+    "stats": {
+      "students": 119,
+      "classes": 8,
+      "address": "Schulstraße 77, 4363 Pabneukirchen",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "412041": {
+    "stats": {
+      "students": 150,
+      "classes": 9,
+      "address": "Schloßstraße 14, 4971 Aurolzmünster",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "413034": {
+    "stats": {
+      "students": 98,
+      "classes": 5,
+      "address": "Amesfurth 2, 4120 Neufelden",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "413062": {
+    "stats": {
+      "students": 176,
+      "classes": 9,
+      "address": "Schulgasse 6, 4161 Ulrichsberg",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "413092": {
+    "stats": {
+      "students": 150,
+      "classes": 8,
+      "address": "Marktstraße 17, 4153 Peilstein im Mühlviertel",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "413291": {
+    "stats": {
+      "students": 54,
+      "classes": 3,
+      "address": "Im Rannatal 6, 4144 Oberkappel",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "414131": {
+    "stats": {
+      "students": 126,
+      "classes": 8,
+      "address": "St. Florian am Inn 48, 4782 St. Florian am Inn",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "415031": {
+    "stats": {
+      "students": 271,
+      "classes": 14,
+      "address": "Schulstraße 3, 4540 Bad Hall",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "415241": {
+    "stats": {
+      "students": 207,
+      "classes": 10,
+      "address": "Neustraße 21, 4522 Sierning",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "415251": {
+    "stats": {
+      "students": 208,
+      "classes": 11,
+      "address": "Neuzeug, Steyrtalstraße 10, 4523 Sierning",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "416022": {
+    "stats": {
+      "students": 327,
+      "classes": 15,
+      "address": "Schulfeld 2a, 4210 Gallneukirchen",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "418031": {
+    "stats": {
+      "students": 130,
+      "classes": 8,
+      "address": "Schulstraße 2, 4611 Buchkirchen",
+      "fetched_at": "2026-10-01"
+    }
+  },
+  "418151": {
+    "stats": {
+      "students": 152,
+      "classes": 9,
+      "address": "Gemeindeplatz 6, 4632 Pichl bei Wels",
+      "fetched_at": "2026-10-01"
+    }
   }
 }
