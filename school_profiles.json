@@ -1811,5 +1811,29 @@
       "address": "Gemeindeplatz 6, 4632 Pichl bei Wels",
       "fetched_at": "2026-10-01"
     }
+  },
+  "414241": {
+    "stats": {
+      "students": 177,
+      "classes": 10,
+      "address": "Tummelplatzstraße 8, 4780 Schärding",
+      "fetched_at": "2026-10-07"
+    }
+  },
+  "410091": {
+    "stats": {
+      "students": 84,
+      "classes": 4,
+      "address": "Kirchengasse 3, 4622 Eggendorf im Traunkreis",
+      "fetched_at": "2026-10-07"
+    }
+  },
+  "417062": {
+    "stats": {
+      "students": 125,
+      "classes": 8,
+      "address": "Thal 15, 4860 Lenzing",
+      "fetched_at": "2026-10-07"
+    }
   }
 }
