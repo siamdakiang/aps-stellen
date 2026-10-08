@@ -1835,5 +1835,13 @@
       "address": "Thal 15, 4860 Lenzing",
       "fetched_at": "2026-10-07"
     }
+  },
+  "411042": {
+    "stats": {
+      "students": 133,
+      "classes": 8,
+      "address": "Josef Czerwenka-Straße 2, 4310 Mauthausen",
+      "fetched_at": "2026-10-08"
+    }
   }
 }
