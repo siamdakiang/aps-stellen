@@ -1843,5 +1843,125 @@
       "address": "Josef Czerwenka-Straße 2, 4310 Mauthausen",
       "fetched_at": "2026-10-08"
     }
+  },
+  "402011": {
+    "stats": {
+      "students": 145,
+      "classes": 8,
+      "address": "Promenade 16, 4400 Steyr",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "402081": {
+    "stats": {
+      "students": 188,
+      "classes": 10,
+      "address": "Tabor, Taschlried 1-3, 4400 Steyr",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "403013": {
+    "stats": {
+      "students": 165,
+      "classes": 20,
+      "address": "Porzellangasse 46, 4600 Wels",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "405012": {
+    "stats": {
+      "students": 82,
+      "classes": 5,
+      "address": "Schulstraße 1, 4072 Alkoven",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "406112": {
+    "stats": {
+      "students": 225,
+      "classes": 11,
+      "address": "Schulstraße 1, 4273 Unterweißenbach",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "407031": {
+    "stats": {
+      "students": 158,
+      "classes": 9,
+      "address": "Kirchengasse 10, 4802 Ebensee",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "409062": {
+    "stats": {
+      "students": 237,
+      "classes": 12,
+      "address": "Schulstraße 18, 4580 Windischgarsten",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "411191": {
+    "stats": {
+      "students": 81,
+      "classes": 4,
+      "address": "Rechberg 10, 4324 Rechberg",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "414013": {
+    "stats": {
+      "students": 29,
+      "classes": 4,
+      "address": "Schulstraße 5c, 4780 Schärding",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "414151": {
+    "stats": {
+      "students": 43,
+      "classes": 2,
+      "address": "Freinberg 21, 4785 Freinberg",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "415032": {
+    "stats": {
+      "students": 177,
+      "classes": 10,
+      "address": "Großraming 17, 4463 Großraming",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "416102": {
+    "stats": {
+      "students": 279,
+      "classes": 14,
+      "address": "Försterstraße 2, 4202 Hellmonsödt",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "417182": {
+    "stats": {
+      "students": 248,
+      "classes": 12,
+      "address": "Mühlfeldstraße 1, 4690 Schwanenstadt",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "417351": {
+    "stats": {
+      "students": 352,
+      "classes": 17,
+      "address": "Linzerstraße 21, 4690 Schwanenstadt",
+      "fetched_at": "2026-10-21"
+    }
+  },
+  "418042": {
+    "stats": {
+      "students": 172,
+      "classes": 8,
+      "address": "Hafferlstraße 7, 4650 Lambach",
+      "fetched_at": "2026-10-21"
+    }
   }
 }
