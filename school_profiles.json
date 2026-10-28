@@ -1963,5 +1963,13 @@
       "address": "Hafferlstraße 7, 4650 Lambach",
       "fetched_at": "2026-10-21"
     }
+  },
+  "417081": {
+    "stats": {
+      "students": 101,
+      "classes": 6,
+      "address": "Aurach am Hongar 100, 4861 Aurach am Hongar",
+      "fetched_at": "2026-10-28"
+    }
   }
 }
