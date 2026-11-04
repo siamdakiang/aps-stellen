@@ -1971,5 +1971,13 @@
       "address": "Aurach am Hongar 100, 4861 Aurach am Hongar",
       "fetched_at": "2026-10-28"
     }
+  },
+  "417431": {
+    "stats": {
+      "students": 261,
+      "classes": 14,
+      "address": "Dr. Schererstraße 8, 4840 Vöcklabruck",
+      "fetched_at": "2026-11-04"
+    }
   }
 }
