@@ -1979,5 +1979,125 @@
       "address": "Dr. Schererstraße 8, 4840 Vöcklabruck",
       "fetched_at": "2026-11-04"
     }
+  },
+  "404112": {
+    "stats": {
+      "students": 221,
+      "classes": 11,
+      "address": "Schulstraße 12, 5145 Neukirchen an der Enknach",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "404122": {
+    "stats": {
+      "students": 369,
+      "classes": 16,
+      "address": "Marktplatz 11, 5142 Eggelsberg",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "404481": {
+    "stats": {
+      "students": 102,
+      "classes": 6,
+      "address": "Sankt Peter am Hart 6, 4963 St. Peter am Hart",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "406172": {
+    "stats": {
+      "students": 80,
+      "classes": 4,
+      "address": "Kirchenplatz 3, 4251 Sandl",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "407081": {
+    "stats": {
+      "students": 134,
+      "classes": 9,
+      "address": "Traundorf, Annastraße 4, 4810 Gmunden",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "407321": {
+    "stats": {
+      "students": 223,
+      "classes": 11,
+      "address": "Steinbichlstraße 9, 4812 Pinsdorf",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "408041": {
+    "stats": {
+      "students": 78,
+      "classes": 5,
+      "address": "Bruck an der Aschach 40, 4722 Peuerbach",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "408071": {
+    "stats": {
+      "students": 128,
+      "classes": 8,
+      "address": "Hauptstraße 18, 4673 Gaspoltshofen",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "408072": {
+    "stats": {
+      "students": 113,
+      "classes": 6,
+      "address": "Vischerstraße 6, 4723 Natternbach",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "408331": {
+    "stats": {
+      "students": 176,
+      "classes": 9,
+      "address": "Lederergasse 1, 4730 Waizenkirchen",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "409081": {
+    "stats": {
+      "students": 282,
+      "classes": 15,
+      "address": "Parkstraße 9, 4560 Kirchdorf an der Krems",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "410092": {
+    "stats": {
+      "students": 78,
+      "classes": 4,
+      "address": "Haidfeldstraße 31, 4060 Leonding",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "410161": {
+    "stats": {
+      "students": 156,
+      "classes": 8,
+      "address": "Schulstraße 20, 4531 Kematen an der Krems",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "417013": {
+    "stats": {
+      "students": 130,
+      "classes": 16,
+      "address": "Salzburger Straße 37, 4840 Vöcklabruck",
+      "fetched_at": "2026-11-19"
+    }
+  },
+  "418022": {
+    "stats": {
+      "students": 242,
+      "classes": 12,
+      "address": "Lambacher Strasse 4, 4623 Gunskirchen",
+      "fetched_at": "2026-11-19"
+    }
   }
 }
