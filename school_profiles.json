@@ -2099,5 +2099,13 @@
       "address": "Lambacher Strasse 4, 4623 Gunskirchen",
       "fetched_at": "2026-11-19"
     }
+  },
+  "407291": {
+    "stats": {
+      "students": 216,
+      "classes": 12,
+      "address": "Irresbergstraße 2, 4694 Ohlsdorf",
+      "fetched_at": "2026-11-23"
+    }
   }
 }
